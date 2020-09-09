@@ -21,7 +21,7 @@ from ..tokens import tokenize_gll, Name, SimpleToken, String
 
 
 def test_simple_operators():
-    assert list(tokenize_gll("{ } | ? * + ?    ; } |")) == [
+    assert list(tokenize_gll("{ } | ? * + ?    ;: = } |")) == [
         SimpleToken.GROUP_START,
         SimpleToken.GROUP_END,
         SimpleToken.PIPE,
@@ -30,6 +30,8 @@ def test_simple_operators():
         SimpleToken.PLUS,
         SimpleToken.PERCENT,
         SimpleToken.SEMICOLON,
+        SimpleToken.COLON,
+        SimpleToken.EQUAL,
         SimpleToken.GROUP_END,
         SimpleToken.PIPE,
     ]

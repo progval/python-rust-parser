@@ -32,6 +32,8 @@ class SimpleToken(Token, enum.Enum):
     PLUS = "+"
     PERCENT = "?"
     SEMICOLON = ";"
+    COLON = ":"
+    EQUAL = "="
 
 @dataclass
 class String(Token):
@@ -56,7 +58,7 @@ def tokenize_gll(code: str) -> Iterator[str]:
         match char:
             case " ":
                 continue
-            case "{" | "}" | "|" | "?" | "*" | "+" | "?" | ";":
+            case "{" | "}" | "|" | "?" | "*" | "+" | "?" | ";" | ":" | "=":
                 yield SimpleToken(char)
             case '"':
                 # find the next quote
