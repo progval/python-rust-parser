@@ -89,39 +89,26 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
 
     for tok in toks:
         match tok:
-            case tokens.Name(name):
-                if current_symbol_name is None:
-                    # starting a symbol
-                    assert stack is None
-                    current_symbol_name = name
-                    assert name not in rules, name
-                    rules[name] = {}
-                elif current_rule_name is None:
-                    # starting a rule
-                    assert stack == [[]]
-                    assert current_symbol_name is not None
-                    assert current_rule_name is None
-                    current_rule_name = name
-                    assert name not in rules, name
-                else:
-                    # reference to another rule
-                    assert stack
-                    stack[-1].append(RuleName(name))
+
+            #####################
+            # Symbol "management"
+
+            case tokens.Name(name) if current_symbol_name is None:
+                # symbol name
+                assert current_rule_name is None
+                assert stack is None
+                current_symbol_name = name
+                assert name not in rules, name
+                rules[name] = {}
 
             case tokens.SimpleToken.EQUAL:
-                # starting a symbol
+                # = char after a symbol name
                 assert current_symbol_name is not None, "= without a symbol name"
                 assert current_rule_name is None
                 assert stack is None, "= inside a rule"
 
-            case tokens.SimpleToken.COLON:
-                # starting a rule
-                assert current_symbol_name is not None
-                assert current_rule_name is not None, ": without a rule name"
-                assert stack == [[]], ": inside a rule"
-
             case tokens.SimpleToken.SEMICOLON:
-                # ending a symbol
+                # end of symbol
                 assert stack is not None
                 assert len(stack) == 1
                 assert len(stack[0]) == 1, "rule has more than one direct child (missing group?)"
@@ -130,19 +117,38 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
                 current_rule_name = None
                 stack = None
 
-            case tokens.SimpleToken.PIPE:
-                if stack is None:
-                    # starting a rule
-                    stack = [[]]
-                elif len(stack) == 1:
-                    # end a rule, start a new one
-                    assert len(stack[0]) == 1, "rule has more than one direct child (missing group?)"
-                    rules[current_symbol_name][current_rule_name] = stack[0][0]
-                    current_rule_name = None
-                    stack = [[]]
-                else:
-                    # inside a group
-                    stack[-1].append(_ALTERNATION_TOKEN)
+            #####################
+            # Rule "management"
+
+            case tokens.Name(name) if current_rule_name is None:
+                # rule name
+                assert stack == [[]]
+                assert current_symbol_name is not None
+                assert current_rule_name is None
+                current_rule_name = name
+                assert name not in rules, name
+
+            case tokens.SimpleToken.COLON:
+                # : char after a rule name
+                assert current_symbol_name is not None
+                assert current_rule_name is not None, ": without a rule name"
+                assert stack == [[]], ": inside a rule"
+
+            case tokens.SimpleToken.PIPE if current_rule_name is None:
+                # start of the first rule
+                assert current_symbol_name is not None
+                assert stack is None
+                stack = [[]]
+
+            case tokens.SimpleToken.PIPE if len(stack) == 1:
+                # end a rule, start a new one
+                assert len(stack[0]) == 1, "rule has more than one direct child (missing group?)"
+                rules[current_symbol_name][current_rule_name] = stack[0][0]
+                current_rule_name = None
+                stack = [[]]
+
+            #####################
+            # Groups
 
             case tokens.SimpleToken.GROUP_START:
                 stack.append([])
@@ -161,8 +167,22 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
                     else:
                         stack[-1].append(Concatenation(items=group))
 
+            #####################
+            # Combination operators
+
+            case tokens.SimpleToken.PIPE:
+                # inside a group
+                stack[-1].append(_ALTERNATION_TOKEN)
+
+            #####################
+            # Others
+
+            case tokens.Name(name):
+                # reference to another rule
+                assert stack
+                stack[-1].append(RuleName(name))
+
             case tokens.String(name):
-                print(stack)
                 stack[-1].append(StringLiteral(name))
 
             case _:
