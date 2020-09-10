@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
+import re
 from dataclasses import dataclass
 import enum
 from typing import sealed, Dict, Iterator, List, Optional
@@ -30,7 +31,8 @@ class SimpleToken(Token, enum.Enum):
     QUESTION_MARK = "?"
     STAR = "*"
     PLUS = "+"
-    PERCENT = "?"
+    PERCENT = "%"
+    DOUBLE_PERCENT = "%%"
     SEMICOLON = ";"
     COLON = ":"
     EQUAL = "="
@@ -49,6 +51,12 @@ class Name(Token):
     value: str
 
 
+_WHITESPACES = " \n"
+_SEP_RE = re.compile(
+    "[" + _WHITESPACES + "".join(re.escape(tok.value) for tok in SimpleToken) + "]"
+)
+
+
 def tokenize_gll(code: str) -> Iterator[str]:
     index = 0
     while index < len(code):
@@ -56,10 +64,18 @@ def tokenize_gll(code: str) -> Iterator[str]:
         index += 1
 
         match char:
-            case " ":
+            case " " | "\n":
                 continue
-            case "{" | "}" | "|" | "?" | "*" | "+" | "?" | ";" | ":" | "=":
+            case "{" | "}" | "|" | "?" | "*" | "+" | ";" | ":" | "=":
                 yield SimpleToken(char)
+            case "%":
+                next_char = code[index] # TODO: check not EOF
+                if next_char == "%":
+                    index += 1
+                    yield SimpleToken.DOUBLE_PERCENT
+                else:
+                    yield SimpleToken.PERCENT
+
             case '"':
                 # find the next quote
                 new_index = code.find('"', index)
@@ -69,13 +85,34 @@ def tokenize_gll(code: str) -> Iterator[str]:
                 index = new_index+1
             case "'":
                 raise NotImplementedError("Character ranges.")
+            case "/":
+                # comment, skip to the next newline
+                next_char = code[index] # TODO: check not EOF
+                if next_char == "/":
+                    new_index = code.find('\n', index)
+                    if new_index == -1:
+                        return
+                    else:
+                        assert new_index >= index
+                        index = new_index+1
+                elif next_char == "*":
+                    new_index = code.find('*/', index)
+                    if new_index == -1:
+                        return
+                    else:
+                        assert new_index >= index
+                        index = new_index+2
+                else:
+                    assert False, "/ is not followed by an other / or *"
 
             case _:
-                new_index = code.find(' ', index)
-                if new_index == -1:
+                match = _SEP_RE.search(code, index)
+                if match is None:
+                    # EOF
                     yield Name(value=code[index-1:])
                     return
                 else:
+                    new_index = match.start()
                     assert new_index >= index
                     yield Name(value=code[index-1:new_index])
-                    index = new_index+1
+                    index = new_index

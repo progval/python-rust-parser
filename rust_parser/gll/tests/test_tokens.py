@@ -21,7 +21,7 @@ from ..tokens import tokenize_gll, Name, SimpleToken, String
 
 
 def test_simple_operators():
-    assert list(tokenize_gll("{ } | ? * + ?    ;: = } |")) == [
+    assert list(tokenize_gll("{ } | ? * + %  %%   ;: = \n } |")) == [
         SimpleToken.GROUP_START,
         SimpleToken.GROUP_END,
         SimpleToken.PIPE,
@@ -29,6 +29,7 @@ def test_simple_operators():
         SimpleToken.STAR,
         SimpleToken.PLUS,
         SimpleToken.PERCENT,
+        SimpleToken.DOUBLE_PERCENT,
         SimpleToken.SEMICOLON,
         SimpleToken.COLON,
         SimpleToken.EQUAL,
@@ -53,4 +54,23 @@ def test_name():
         Name("baz"),
         Name("a"),
         Name("qux"),
+    ]
+
+
+def test_comments():
+    assert list(tokenize_gll("foo // bar\n baz /* qux \n quux */ foo")) == [
+        Name("foo"),
+        Name("baz"),
+        Name("foo"),
+    ]
+
+
+def test_separators():
+    assert list(tokenize_gll("foo? bar* baz+")) == [
+        Name("foo"),
+        SimpleToken.QUESTION_MARK,
+        Name("bar"),
+        SimpleToken.STAR,
+        Name("baz"),
+        SimpleToken.PLUS,
     ]
