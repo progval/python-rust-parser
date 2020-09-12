@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
+"""Generates a parser using Tatsu."""
+
 from dataclasses import dataclass
 
 from tatsu import grammars as tatsu_grammars
@@ -23,7 +25,7 @@ from tatsu.ast import AST
 from . import grammar as gll_grammar
 
 
-def node_to_tatsu(node):
+def node_to_tatsu(node: gll_grammar.RuleNode):
     match node:
         case gll_grammar.LabeledNode(name, item):
             return tatsu_grammars.Named(AST(name=name, exp=node_to_tatsu(item)))
@@ -125,4 +127,4 @@ def generate_tatsu_grammar(grammar: gll_grammar.Grammar) -> tatsu_grammars.Gramm
         )
         tatsu_rules.append(tatsu_rule)
 
-    return tatsu_grammars.Grammar(name="GeneratedGllGrammar", rules=tatsu_rules)
+    return tatsu_grammars.Grammar(name=grammar.name, rules=tatsu_rules)

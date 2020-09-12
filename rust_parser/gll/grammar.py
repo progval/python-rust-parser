@@ -79,7 +79,7 @@ class Repeated(RuleNode):
     """aka. 'list' in GLL"""
 
     positive: bool
-    items: List[RuleNode]
+    item: RuleNode
     separator: Optional[str]
     allow_trailing: bool
     """Whether an extra separator is allowed at the end."""
@@ -88,6 +88,7 @@ class Repeated(RuleNode):
 @dataclass
 class Grammar:
     rules: Dict[str, RuleNode]
+    name: str = "GeneratedGllGrammar"
 
 
 _ALTERNATION_TOKEN = object()
@@ -267,7 +268,7 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
                 next_token = next(toks_it)  # preempt the next token
 
                 match (stack[-1][-1], next_token):
-                    case (Repeated(positive, items, None, _), tokens.String(s)):
+                    case (Repeated(positive, _, None, _), tokens.String(s)):
                         stack[-1][-1].separator = s
                         stack[-1][-1].allow_trailing = (
                             tok == tokens.SimpleToken.DOUBLE_PERCENT
