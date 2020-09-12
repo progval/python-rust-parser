@@ -15,8 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
-import pytest
+import textwrap
 
+import pytest
 import tatsu
 from tatsu import exceptions
 
@@ -30,22 +31,24 @@ def test_simple_grammar():
     sc = generate_semantics_code(grammar)
     g = generate_tatsu_grammar(grammar)
 
-    assert sc == (
-        "from __future__ import annotations\n"
-        "\n"
-        "import dataclasses\n"
-        "import typing\n"
-        "\n"
-        "\n"
-        "class Foo(str):\n"
-        "    @classmethod\n"
-        "    def from_ast(cls, ast):\n"
-        "        return cls(ast)\n"
-        "\n"
-        "\n"
-        "class Semantics:\n"
-        "    def Foo(self, ast) -> Foo:\n"
-        "        return Foo.from_ast(ast)\n"
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+
+        class Foo(str):
+            @classmethod
+            def from_ast(cls, ast):
+                return cls(ast)
+
+
+        class Semantics:
+            def Foo(self, ast) -> Foo:
+                return Foo.from_ast(ast)
+    """
     )
 
     namespace = {}
@@ -79,27 +82,29 @@ def test_labeled_concatenation():
     sc = generate_semantics_code(grammar)
     g = generate_tatsu_grammar(grammar)
 
-    assert sc == (
-        "from __future__ import annotations\n"
-        "\n"
-        "import dataclasses\n"
-        "import typing\n"
-        "\n"
-        "\n"
-        "@dataclasses.dataclass\n"
-        "class Main:\n"
-        "    @classmethod\n"
-        "    def from_ast(cls, ast):\n"
-        "        return cls(**ast)\n"
-        "\n"
-        "    foo_field: str\n"
-        "    bar_field: typing.Optional[str]\n"
-        "    baz_field: str\n"
-        "\n"
-        "\n"
-        "class Semantics:\n"
-        "    def Main(self, ast) -> Main:\n"
-        "        return Main.from_ast(ast)\n"
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+
+        @dataclasses.dataclass
+        class Main:
+            @classmethod
+            def from_ast(cls, ast):
+                return cls(**ast)
+
+            foo_field: str
+            bar_field: typing.Optional[str]
+            baz_field: str
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
     )
 
     namespace = {}
@@ -120,16 +125,9 @@ def test_labeled_alternation():
         rules={
             "Main": gll_grammar.Alternation(
                 [
-                    gll_grammar.LabeledNode(
-                        "Foo", gll_grammar.StringLiteral("foo")
-                    ),
-                    gll_grammar.LabeledNode(
-                        "Bar",
-                        gll_grammar.StringLiteral("bar"),
-                    ),
-                    gll_grammar.LabeledNode(
-                        "Baz", gll_grammar.StringLiteral("baz")
-                    ),
+                    gll_grammar.LabeledNode("Foo", gll_grammar.StringLiteral("foo")),
+                    gll_grammar.LabeledNode("Bar", gll_grammar.StringLiteral("bar")),
+                    gll_grammar.LabeledNode("Baz", gll_grammar.StringLiteral("baz")),
                 ]
             )
         }
@@ -137,44 +135,46 @@ def test_labeled_alternation():
     sc = generate_semantics_code(grammar)
     g = generate_tatsu_grammar(grammar)
 
-    assert sc == (
-        "from __future__ import annotations\n"
-        "\n"
-        "import dataclasses\n"
-        "import typing\n"
-        "\n"
-        "\n"
-        "@typing.sealed\n"
-        "class Main:\n"
-        "    @staticmethod\n"
-        "    def from_ast(ast):\n"
-        "        ((variant_name, subtree),) = ast.items()\n"
-        "        cls = globals()[variant_name]\n"
-        "        assert issubclass(cls, Main)  # sealed\n"
-        "        return cls.from_ast(subtree)\n"
-        "\n"
-        "\n"
-        "class Foo(str, Main):\n"
-        "    @classmethod\n"
-        "    def from_ast(cls, ast):\n"
-        "        return cls(ast)\n"
-        "\n"
-        "\n"
-        "class Bar(str, Main):\n"
-        "    @classmethod\n"
-        "    def from_ast(cls, ast):\n"
-        "        return cls(ast)\n"
-        "\n"
-        "\n"
-        "class Baz(str, Main):\n"
-        "    @classmethod\n"
-        "    def from_ast(cls, ast):\n"
-        "        return cls(ast)\n"
-        "\n"
-        "\n"
-        "class Semantics:\n"
-        "    def Main(self, ast) -> Main:\n"
-        "        return Main.from_ast(ast)\n"
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+
+        @typing.sealed
+        class Main:
+            @staticmethod
+            def from_ast(ast):
+                ((variant_name, subtree),) = ast.items()
+                cls = globals()[variant_name]
+                assert issubclass(cls, Main)  # sealed
+                return cls.from_ast(subtree)
+
+
+        class Foo(str, Main):
+            @classmethod
+            def from_ast(cls, ast):
+                return cls(ast)
+
+
+        class Bar(str, Main):
+            @classmethod
+            def from_ast(cls, ast):
+                return cls(ast)
+
+
+        class Baz(str, Main):
+            @classmethod
+            def from_ast(cls, ast):
+                return cls(ast)
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
     )
 
     namespace = {}

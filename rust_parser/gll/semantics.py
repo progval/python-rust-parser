@@ -19,6 +19,7 @@
 
 from dataclasses import dataclass
 import enum
+import textwrap
 import typing
 from typing import Dict, Optional
 
@@ -123,18 +124,22 @@ def node_to_type_code(
 
         case grammar.StringLiteral(string):
             if parent:
-                return (
-                    f"class {type_name}(str, {parent}):\n"
-                    f"    @classmethod\n"
-                    f"    def from_ast(cls, ast):\n"
-                    f"        return cls(ast)\n"
+                return textwrap.dedent(
+                    f"""\
+                    class {type_name}(str, {parent}):
+                        @classmethod
+                        def from_ast(cls, ast):
+                            return cls(ast)
+                    """
                 )
             else:
-                return (
-                    f"class {type_name}(str):\n"
-                    f"    @classmethod\n"
-                    f"    def from_ast(cls, ast):\n"
-                    f"        return cls(ast)\n"
+                return textwrap.dedent(
+                    f"""\
+                    class {type_name}(str):
+                        @classmethod
+                        def from_ast(cls, ast):
+                            return cls(ast)
+                    """
                 )
 
         case grammar.CharacterRange(from_char, to_char):
@@ -146,11 +151,13 @@ def node_to_type_code(
             if parent:
                 code = f"class {type_name}({target_name}, {parent}):\n    pass\n"
             else:
-                return (
-                    f"class {type_name}({target_name}):\n"
-                    f"    @classmethod\n"
-                    f"    def from_ast(cls, ast):\n"
-                    f"        return cls(ast)\n"
+                return textwrap.dedent(
+                    f"""\
+                    class {type_name}({target_name}):
+                        @classmethod
+                        def from_ast(cls, ast):
+                            return cls(ast)
+                    """
                 )
 
         case grammar.Concatenation(items):
@@ -159,12 +166,15 @@ def node_to_type_code(
             else:
                 inheritance = ""
             lines = [
-                f"@dataclasses.dataclass",
-                f"class {type_name}{inheritance}:",
-                f"    @classmethod",
-                f"    def from_ast(cls, ast):",
-                f"        return cls(**ast)",
-                f"",
+                textwrap.dedent(
+                    f"""\
+                    @dataclasses.dataclass
+                    class {type_name}{inheritance}:
+                        @classmethod
+                        def from_ast(cls, ast):
+                            return cls(**ast)
+                    """
+                )
             ]
             lines.extend(
                 (
@@ -185,14 +195,18 @@ def node_to_type_code(
             else:
                 inheritance = ""
             blocks = [
-                f"@typing.sealed\n"
-                f"class {type_name}{inheritance}:\n"
-                f"    @staticmethod\n"
-                f"    def from_ast(ast):\n"
-                f"        ((variant_name, subtree),) = ast.items()\n"
-                f"        cls = globals()[variant_name]\n"
-                f"        assert issubclass(cls, {type_name})  # sealed\n"
-                f"        return cls.from_ast(subtree)\n"
+                textwrap.dedent(
+                    f"""\
+                    @typing.sealed
+                    class {type_name}{inheritance}:
+                        @staticmethod
+                        def from_ast(ast):
+                            ((variant_name, subtree),) = ast.items()
+                            cls = globals()[variant_name]
+                            assert issubclass(cls, {type_name})  # sealed
+                            return cls.from_ast(subtree)
+                    """
+                )
             ]
             for (i, item) in enumerate(items):
                 match item:
