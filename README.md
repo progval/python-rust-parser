@@ -1,6 +1,9 @@
 # python-rust-parser
 A Rust parser written in Python
 
+Not to be confused with [rust-python-parser](https://github.com/ProgVal/rust-python-parser/),
+which is a Python parser written in Rust (ie. the opposite of this).
+
 ## The plan
 
 1. Basic reimplementation of [GLL](https://github.com/rust-lang/gll)
