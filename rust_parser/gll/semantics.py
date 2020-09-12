@@ -31,20 +31,6 @@ _IMPORTS = ["dataclasses", "typing"]
 """Modules imported by the generated source code."""
 
 
-class TypeFamily(enum.Enum):
-    """Represents the "type" of the type, ie. whether it's a dataclass,
-    a native type, etc.
-
-    This is used to codegen the semantics class so it knows how to instantiate
-    the type."""
-    NATIVE = enum.auto()
-    """usually str"""
-    DATACLASS = enum.auto()
-    """a dataclass with fields; it comes from a Concatenation"""
-    SEALED_DATACLASS = enum.auto()
-    """an ADT; it comes from an Alternation"""
-
-
 class TargetAstNode(type):
     """A node of the target AST (ie. the one parsed by the generated parser)."""
 
@@ -124,7 +110,7 @@ def node_to_type_code(
     node: grammar.RuleNode,
     rule_name_to_type_name: Dict[str, str],
     parent: Optional[str] = None
-) -> (TypeFamily, str):
+) -> str:
     """From a node description, return the source code of a class
     representing its AST."""
 
@@ -137,20 +123,19 @@ def node_to_type_code(
 
         case grammar.StringLiteral(string):
             if parent:
-                code = (
+                return (
                     f"class {type_name}(str, {parent}):\n"
                     f"    @classmethod\n"
                     f"    def from_ast(cls, ast):\n"
                     f"        return cls(ast)\n"
                 )
             else:
-                code = (
+                return (
                     f"class {type_name}(str):\n"
                     f"    @classmethod\n"
                     f"    def from_ast(cls, ast):\n"
                     f"        return cls(ast)\n"
                 )
-            return (TypeFamily.NATIVE, code)
 
         case grammar.CharacterRange(from_char, to_char):
             raise NotImplementedError("character ranges")
@@ -161,13 +146,12 @@ def node_to_type_code(
             if parent:
                 code = f"class {type_name}({target_name}, {parent}):\n    pass\n"
             else:
-                code = (
+                return (
                     f"class {type_name}({target_name}):\n"
                     f"    @classmethod\n"
                     f"    def from_ast(cls, ast):\n"
                     f"        return cls(ast)\n"
                 )
-            return (TypeFamily.NATIVE, code)
 
         case grammar.Concatenation(items):
             if parent:
@@ -175,22 +159,22 @@ def node_to_type_code(
             else:
                 inheritance = ""
             lines = [
-                f"@dataclasses.dataclass\n"
-                f"class {type_name}{inheritance}:\n"
-                f"    @classmethod\n"
-                f"    def from_ast(cls, ast):\n"
-                f"        return cls(**ast)\n"
-                f"\n"
+                f"@dataclasses.dataclass",
+                f"class {type_name}{inheritance}:",
+                f"    @classmethod",
+                f"    def from_ast(cls, ast):",
+                f"        return cls(**ast)",
+                f"",
             ]
             lines.extend(
                 (
                     "    "
                     + _node_to_field_code(item, f"field_{i}", rule_name_to_type_name)
-                    + "\n"
                 )
                 for (i, item) in enumerate(items)
             )
-            return (TypeFamily.DATACLASS, "".join(lines))
+            lines.append("")
+            return "\n".join(lines)
 
         case grammar.Alternation(items):
             # Ideally, we would use algebraic data types here.
@@ -215,7 +199,7 @@ def node_to_type_code(
                     case grammar.LabeledNode(name, item):
                         # We're in luck! We have a human-supplied name for this variant
                         # TODO: make sure it's unique
-                        (_, block) = node_to_type_code(
+                        block = node_to_type_code(
                             name, item, rule_name_to_type_name, parent=type_name,
                         )
 
@@ -223,13 +207,13 @@ def node_to_type_code(
                         # else, generate a name.
                         # TODO: make sure it's unique
                         name = f"{type_name}_{i}"
-                        (_, blocks) = node_to_type_code(
+                        blocks = node_to_type_code(
                             name, item, rule_name_to_type_name, parent=type_name,
                         )
 
                 blocks.append(block)
 
-            return (TypeFamily.SEALED_DATACLASS, "\n\n".join(blocks))
+            return "\n\n".join(blocks)
 
         case grammar.Option(item):
             # That sucks... the whole rule is an option.
@@ -247,7 +231,6 @@ def node_to_type_code(
 
 def grammar_to_semantics_code(
     grammar: grammar.Grammar,
-    type_families: Dict[str, TypeFamily],
     rule_name_to_type_name: Dict[str, str],
 ) -> str:
     lines = ["class Semantics:"]
@@ -258,23 +241,6 @@ def grammar_to_semantics_code(
         )
 
         lines.append(f"        return {type_name}.from_ast(ast)")
-        '''
-        rule_type_family = type_families[rule_name]
-        match rule_type_family:
-            case TypeFamily.NATIVE:
-                lines.append(f"        return {type_name}(ast)")
-            case TypeFamily.DATACLASS:
-                lines.append(f"        return {type_name}(**ast)")
-            case TypeFamily.SEALED_DATACLASS:
-                lines.append(f"        ((variant_name, subtree),) = ast.items()")
-                lines.append(f"        cls = globals()[variant_name]")
-                lines.append(f"        assert issubclass(cls, {type_name})  # sealed")
-                lines.append(f"        return cls(subtree)")
-            case _:
-                # should be unreachable
-                assert False, rule_type_family
-        '''
-
         lines.append("")
 
     return "\n".join(lines)
@@ -291,16 +257,12 @@ def generate_semantics_code(grammar: grammar.Grammar) -> str:
         "".join(f"import {name}\n" for name in _IMPORTS)
     ]
 
-    type_families: Dict[str, TypeFamily] = {}
-
     for (rule_name, rule) in grammar.rules.items():
-        (type_family, code) = node_to_type_code(
-            rule_name, rule, rule_name_to_type_name, type_families
-        )
+        code = node_to_type_code(rule_name, rule, rule_name_to_type_name)
         blocks.append(code)
 
     blocks.append(
-        grammar_to_semantics_code(grammar, type_families, rule_name_to_type_name)
+        grammar_to_semantics_code(grammar, rule_name_to_type_name)
     )
 
     return "\n\n".join(blocks)
