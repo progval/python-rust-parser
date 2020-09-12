@@ -87,7 +87,7 @@ class Repeated(RuleNode):
 
 @dataclass
 class Grammar:
-    rules: Dict[str, Dict[str, RuleNode]]
+    rules: Dict[str, RuleNode]
 
 
 _ALTERNATION_TOKEN = object()
@@ -146,23 +146,14 @@ def postprocess_group(group):
 class _State(enum.Enum):
     """Parser state"""
     START = 0
-    GOT_SYMBOL_NAME = 1
-    GOT_EQUAL = 2
-    GOT_PIPE = 3
-    GOT_RULE_NAME = 4
-    IN_NAMED_RULE = 5
-    IN_ANONYMOUS_RULE = 6
+    GOT_RULE_NAME = 1
+    IN_RULE = 2
 
     # Transition diagram:
     #
-    # START -> GOT_SYMBOL_NAME -> GOT_EQUAL -> GOT_PIPE -> GOT_RULE_NAME -> IN_NAMED_RULE
-    #  ^ ^                           |                                            |
-    #  | |                           v                                            |
-    #  | |                   IN_ANONYMOUS_RULE                                    |
-    #  | |                           |                                            |
-    #  | +---------------------------+                                            |
-    #  |                                                                          |
-    #  +--------------------------------------------------------------------------+
+    # START -> GOT_RULE_NAME -> IN_RULE
+    #   ^                          |
+    #   +--------------------------+
 
 
 def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
@@ -170,14 +161,10 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
 
     state = _State.START
     stack = None
-    current_symbol_name = None
     current_rule_name = None
 
     def assert_state_in_rule(error_message):
-        nonlocal state
-        if state == _State.GOT_EQUAL:
-            state = _State.IN_ANONYMOUS_RULE
-        elif state not in (_State.IN_NAMED_RULE, _State.IN_ANONYMOUS_RULE):
+        if state != _State.IN_RULE:
             raise GllParseError(error_message)
 
     toks_it = iter(toks)
@@ -186,31 +173,29 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
         match tok:
 
             #####################
-            # Symbol "management"
+            # Rule "management"
 
             case tokens.Name(name) if state == _State.START:
-                # symbol name
-                assert current_symbol_name is None
+                # rule name
                 assert current_rule_name is None
                 assert stack is None
                 if name in rules:
-                    raise GllParseError(f"Duplicate symbol: {name}")
-                state = _State.GOT_SYMBOL_NAME
-                current_symbol_name = name
-                rules[name] = {}
+                    raise GllParseError(f"Duplicate rule: {name}")
+                state = _State.GOT_RULE_NAME
+                current_rule_name = name
 
             case tokens.SimpleToken.EQUAL:
-                # = char after a symbol name
-                if state != _State.GOT_SYMBOL_NAME:
+                # = char after a rule name
+                if state != _State.GOT_RULE_NAME:
                     raise GllParseError("Unexpected =.")
                 assert stack is None
-                state = _State.GOT_EQUAL
+                state = _State.IN_RULE
 
                 stack = [[]]  # must initialize it now, in case it's an anonymous rule
 
             case tokens.SimpleToken.SEMICOLON:
-                # end of symbol
-                if state not in (_State.IN_NAMED_RULE, _State.IN_ANONYMOUS_RULE):
+                # end of rule
+                if state != _State.IN_RULE:
                     raise GllParseError("Unexpected ;")
                 assert stack is not None
                 assert len(stack) >= 1
@@ -226,50 +211,11 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
 
                 rule = postprocess_group(stack[0])
 
-                rules[current_symbol_name][current_rule_name] = rule
+                rules[current_rule_name] = rule
 
                 state = _State.START
-                current_symbol_name = None
                 current_rule_name = None
                 stack = None
-
-            #####################
-            # Rule "management"
-
-            case tokens.Name(name) if state == _State.GOT_PIPE:
-                # rule name
-                assert current_symbol_name is not None
-                assert current_rule_name is None
-                if name in rules[current_symbol_name]:
-                    raise GllParseError(
-                        f"Duplicate rule for symbol {current_symbol_name}: {name}"
-                    )
-                current_rule_name = name
-                state = _State.GOT_RULE_NAME
-
-            case tokens.SimpleToken.COLON if state == _State.GOT_RULE_NAME:
-                assert stack == [[]]
-                state = _State.IN_NAMED_RULE
-
-            case tokens.SimpleToken.PIPE if state == _State.GOT_EQUAL:
-                # start of the first rule
-                assert current_symbol_name is not None
-                assert current_rule_name is None
-                assert stack == [[]]
-
-                state = _State.GOT_PIPE
-
-            case tokens.SimpleToken.PIPE if len(stack) == 1:
-                # end a rule, start a new one
-
-                if state != _State.IN_NAMED_RULE:
-                    raise GllParseError("unexpected |")
-
-                rules[current_symbol_name][current_rule_name] = postprocess_group(stack[0])
-
-                state = _State.GOT_PIPE
-                current_rule_name = None
-                stack = [[]]
 
             #####################
             # Groups
@@ -294,7 +240,7 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
             case tokens.SimpleToken.COLON:
                 assert_state_in_rule("unexpected ':'")
                 if not stack[-1]:
-                    raise GllParseError("missing lael before ':'")
+                    raise GllParseError("missing label before ':'")
                 else:
                     label = stack[-1][-1]
                     if not isinstance(label, SymbolName):
@@ -338,7 +284,7 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
             case tokens.Name(name):
                 # reference to another rule
                 assert_state_in_rule(f"unexpected name {name}")
-                assert current_symbol_name is not None, name
+                assert current_rule_name is not None, name
                 assert stack
                 stack[-1].append(SymbolName(name))
 

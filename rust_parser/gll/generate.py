@@ -115,32 +115,14 @@ def node_to_tatsu(node):
 
 def generate_tatsu_grammar(grammar: gll_grammar.Grammar) -> tatsu_grammars.Grammar:
     tatsu_rules = []
-    for (symbol, rules) in grammar.rules.items():
-        if None in rules:
-            assert len(rules) == 1
-            tatsu_rule = tatsu_grammars.Rule(
-                ast=None,
-                name=symbol,
-                exp=node_to_tatsu(rules[None]),
-                params=None,
-                kwparams=None,
-            )
-        else:
-            tatsu_rule = tatsu_grammars.Rule(
-                ast=None,
-                name=symbol,
-                exp=tatsu_grammars.Choice(
-                    ast=[
-                        tatsu_grammars.Named(
-                            ast=AST(name=rule_name, exp=node_to_tatsu(rule)),
-                        )
-                        for (rule_name, rule) in rules.items()
-                    ]
-                ),
-                params=None,
-                kwparams=None,
-            )
-
+    for (symbol, rule) in grammar.rules.items():
+        tatsu_rule = tatsu_grammars.Rule(
+            ast=None,
+            name=symbol,
+            exp=node_to_tatsu(rule),
+            params=None,
+            kwparams=None,
+        )
         tatsu_rules.append(tatsu_rule)
 
     return tatsu_grammars.Grammar(name="GeneratedGllGrammar", rules=tatsu_rules)

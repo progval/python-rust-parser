@@ -26,7 +26,7 @@ from ..generate import generate_tatsu_grammar
 
 def test_simple_grammar():
     g = generate_tatsu_grammar(
-        gll_grammar.Grammar(rules={"Foo": {None: gll_grammar.StringLiteral("foo")}})
+        gll_grammar.Grammar(rules={"Foo": gll_grammar.StringLiteral("foo")})
     )
     assert str(g) == str(compile("Foo = 'foo';"))
 
@@ -34,47 +34,14 @@ def test_simple_grammar():
     with pytest.raises(exceptions.FailedToken):
         g.parse("bar")
 
-    g = generate_tatsu_grammar(
-        gll_grammar.Grammar(rules={"Foo": {"Bar": gll_grammar.StringLiteral("foo")}})
-    )
-    assert str(g) == str(compile("Foo = Bar:'foo';"))
-
-    assert g.parse("foo") == {"Bar": "foo"}
-    with pytest.raises(exceptions.FailedParse):
-        g.parse("bar")
-
-
-def test_multiple_rules():
-    g = generate_tatsu_grammar(
-        gll_grammar.Grammar(
-            rules={
-                "Foo": {
-                    "Bar": gll_grammar.StringLiteral("bar"),
-                    "Baz": gll_grammar.StringLiteral("baz"),
-                }
-            }
-        )
-    )
-    assert str(g) == str(compile("Foo = Bar:'bar' | Baz:'baz';"))
-
-    assert g.parse("bar") == {"Bar": "bar"}
-    assert g.parse("baz") == {"Baz": "baz"}
-    with pytest.raises(exceptions.FailedParse):
-        g.parse("foo")
-
 
 def test_alternation():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Alternation(
-                        [
-                            gll_grammar.StringLiteral("bar"),
-                            gll_grammar.StringLiteral("baz"),
-                        ]
-                    )
-                }
+                "Main": gll_grammar.Alternation(
+                    [gll_grammar.StringLiteral("bar"), gll_grammar.StringLiteral("baz")]
+                )
             }
         )
     )
@@ -90,21 +57,24 @@ def test_multiple_symbols():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    "Bar": gll_grammar.SymbolName("SBar"),
-                    "Baz": gll_grammar.SymbolName("SBaz"),
-                },
-                "SBar": {"Bar": gll_grammar.StringLiteral("bar")},
-                "SBaz": {"Baz": gll_grammar.StringLiteral("baz")},
+                "Main": gll_grammar.Alternation(
+                    [gll_grammar.SymbolName("SBar"), gll_grammar.SymbolName("SBaz")]
+                ),
+                "SBar": gll_grammar.LabeledNode(
+                    "Bar", gll_grammar.StringLiteral("bar")
+                ),
+                "SBaz": gll_grammar.LabeledNode(
+                    "Baz", gll_grammar.StringLiteral("baz")
+                ),
             }
         )
     )
     assert str(g) == str(
-        compile("Main = Bar: SBar | Baz: SBaz; SBar = Bar: 'bar'; SBaz = Baz: 'baz';")
+        compile("Main = SBar | SBaz; SBar = Bar: 'bar'; SBaz = Baz: 'baz';")
     )
 
-    assert g.parse("bar") == {"Bar": {"Bar": "bar"}}
-    assert g.parse("baz") == {"Baz": {"Baz": "baz"}}
+    assert g.parse("bar") == {"Bar": "bar"}
+    assert g.parse("baz") == {"Baz": "baz"}
     with pytest.raises(exceptions.FailedParse):
         g.parse("foo")
 
@@ -113,18 +83,12 @@ def test_concatenation():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Concatenation(
-                        [
-                            gll_grammar.StringLiteral("bar"),
-                            gll_grammar.StringLiteral("baz"),
-                        ]
-                    )
-                }
+                "Main": gll_grammar.Concatenation(
+                    [gll_grammar.StringLiteral("bar"), gll_grammar.StringLiteral("baz")]
+                )
             }
         )
     )
-    print(repr(g.rules[0].exp.__dict__))
     assert str(g) == str(compile("Main = 'bar' 'baz';"))
 
     assert g.parse("bar baz") == ("bar", "baz")
@@ -142,14 +106,12 @@ def test_option():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Concatenation(
-                        [
-                            gll_grammar.StringLiteral("bar"),
-                            gll_grammar.Option(gll_grammar.StringLiteral("baz")),
-                        ]
-                    )
-                }
+                "Main": gll_grammar.Concatenation(
+                    [
+                        gll_grammar.StringLiteral("bar"),
+                        gll_grammar.Option(gll_grammar.StringLiteral("baz")),
+                    ]
+                )
             }
         )
     )
@@ -169,19 +131,14 @@ def test_labels():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Concatenation(
-                        [
-                            gll_grammar.LabeledNode(
-                                "l1", gll_grammar.StringLiteral("bar")
-                            ),
-                            gll_grammar.LabeledNode(
-                                "l2",
-                                gll_grammar.Option(gll_grammar.StringLiteral("baz")),
-                            ),
-                        ]
-                    )
-                }
+                "Main": gll_grammar.Concatenation(
+                    [
+                        gll_grammar.LabeledNode("l1", gll_grammar.StringLiteral("bar")),
+                        gll_grammar.LabeledNode(
+                            "l2", gll_grammar.Option(gll_grammar.StringLiteral("baz"))
+                        ),
+                    ]
+                )
             }
         )
     )
@@ -201,20 +158,16 @@ def test_label_in_option():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Concatenation(
-                        [
+                "Main": gll_grammar.Concatenation(
+                    [
+                        gll_grammar.LabeledNode("l1", gll_grammar.StringLiteral("bar")),
+                        gll_grammar.Option(
                             gll_grammar.LabeledNode(
-                                "l1", gll_grammar.StringLiteral("bar")
-                            ),
-                            gll_grammar.Option(
-                                gll_grammar.LabeledNode(
-                                    "l2", gll_grammar.StringLiteral("baz")
-                                )
-                            ),
-                        ]
-                    )
-                }
+                                "l2", gll_grammar.StringLiteral("baz")
+                            )
+                        ),
+                    ]
+                )
             }
         )
     )
@@ -234,11 +187,9 @@ def test_repeat():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Repeated(
-                        False, gll_grammar.StringLiteral("foo"), None, False
-                    )
-                }
+                "Main": gll_grammar.Repeated(
+                    False, gll_grammar.StringLiteral("foo"), None, False
+                )
             }
         )
     )
@@ -254,11 +205,9 @@ def test_repeat_positive():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Repeated(
-                        True, gll_grammar.StringLiteral("foo"), None, False
-                    )
-                }
+                "Main": gll_grammar.Repeated(
+                    True, gll_grammar.StringLiteral("foo"), None, False
+                )
             }
         )
     )
@@ -276,11 +225,9 @@ def test_repeat_separator():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Repeated(
-                        False, gll_grammar.StringLiteral("foo"), ",", False
-                    )
-                }
+                "Main": gll_grammar.Repeated(
+                    False, gll_grammar.StringLiteral("foo"), ",", False
+                )
             }
         )
     )
@@ -300,11 +247,9 @@ def test_repeat_positive_separator():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Repeated(
-                        True, gll_grammar.StringLiteral("foo"), ",", False
-                    )
-                }
+                "Main": gll_grammar.Repeated(
+                    True, gll_grammar.StringLiteral("foo"), ",", False
+                )
             }
         )
     )
@@ -326,11 +271,9 @@ def test_repeat_separator_trailing():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Repeated(
-                        False, gll_grammar.StringLiteral("foo"), ",", True
-                    )
-                }
+                "Main": gll_grammar.Repeated(
+                    False, gll_grammar.StringLiteral("foo"), ",", True
+                )
             }
         )
     )
@@ -349,11 +292,9 @@ def test_repeat_positive_separator_trailing():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
             rules={
-                "Main": {
-                    None: gll_grammar.Repeated(
-                        True, gll_grammar.StringLiteral("foo"), ",", True
-                    )
-                }
+                "Main": gll_grammar.Repeated(
+                    True, gll_grammar.StringLiteral("foo"), ",", True
+                )
             }
         )
     )

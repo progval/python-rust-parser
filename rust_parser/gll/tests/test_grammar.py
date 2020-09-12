@@ -33,41 +33,8 @@ from ..grammar import (
 
 def test_trivial_rule():
     assert parse_gll(
-        [
-            Name("Value"),
-            SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foo"),
-            SimpleToken.COLON,
-            String("foo"),
-            SimpleToken.SEMICOLON,
-        ]
-    ) == Grammar(rules={"Value": {"Foo": StringLiteral(string="foo")}})
-
-
-def test_two_rules():
-    assert parse_gll(
-        [
-            Name("Value"),
-            SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foo"),
-            SimpleToken.COLON,
-            String("foo"),
-            SimpleToken.PIPE,
-            Name("Bar"),
-            SimpleToken.COLON,
-            String("bar"),
-            SimpleToken.SEMICOLON,
-        ]
-    ) == Grammar(
-        rules={
-            "Value": {
-                "Foo": StringLiteral(string="foo"),
-                "Bar": StringLiteral(string="bar"),
-            }
-        }
-    )
+        [Name("Value"), SimpleToken.EQUAL, String("foo"), SimpleToken.SEMICOLON]
+    ) == Grammar(rules={"Value": StringLiteral(string="foo")})
 
 
 def test_concatenation():
@@ -75,9 +42,6 @@ def test_concatenation():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             SimpleToken.GROUP_START,
             String("foo"),
             String("bar"),
@@ -86,11 +50,9 @@ def test_concatenation():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": Concatenation(
-                    items=[StringLiteral(string="foo"), StringLiteral(string="bar")]
-                )
-            }
+            "Value": Concatenation(
+                items=[StringLiteral(string="foo"), StringLiteral(string="bar")]
+            )
         }
     )
 
@@ -100,9 +62,6 @@ def test_concatenation_and_alternation():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             SimpleToken.GROUP_START,
             String("foo"),
             SimpleToken.PIPE,
@@ -113,16 +72,14 @@ def test_concatenation_and_alternation():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": Alternation(
-                    items=[
-                        StringLiteral(string="foo"),
-                        Concatenation(
-                            [StringLiteral(string="bar"), StringLiteral(string="baz")]
-                        ),
-                    ]
-                )
-            }
+            "Value": Alternation(
+                items=[
+                    StringLiteral(string="foo"),
+                    Concatenation(
+                        [StringLiteral(string="bar"), StringLiteral(string="baz")]
+                    ),
+                ]
+            )
         }
     )
 
@@ -132,9 +89,6 @@ def test_alternation():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             SimpleToken.GROUP_START,
             String("foo"),
             SimpleToken.PIPE,
@@ -144,11 +98,9 @@ def test_alternation():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": Alternation(
-                    items=[StringLiteral(string="foo"), StringLiteral(string="bar")]
-                )
-            }
+            "Value": Alternation(
+                items=[StringLiteral(string="foo"), StringLiteral(string="bar")]
+            )
         }
     )
 
@@ -158,9 +110,6 @@ def test_alternation_groups():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             SimpleToken.GROUP_START,
             SimpleToken.GROUP_START,
             String("foo"),
@@ -176,111 +125,58 @@ def test_alternation_groups():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": Alternation(
-                    items=[
-                        Concatenation(
-                            [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                        ),
-                        Concatenation(
-                            [StringLiteral(string="baz"), StringLiteral(string="qux")]
-                        ),
-                    ]
-                )
-            }
+            "Value": Alternation(
+                items=[
+                    Concatenation(
+                        [StringLiteral(string="foo"), StringLiteral(string="bar")]
+                    ),
+                    Concatenation(
+                        [StringLiteral(string="baz"), StringLiteral(string="qux")]
+                    ),
+                ]
+            )
         }
     )
 
 
-def test_two_symbols():
+def test_two_rules():
     assert parse_gll(
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foo"),
-            SimpleToken.COLON,
             String("foo"),
             SimpleToken.SEMICOLON,
             Name("Value2"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Bar"),
-            SimpleToken.COLON,
             String("bar"),
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
         rules={
-            "Value": {"Foo": StringLiteral(string="foo")},
-            "Value2": {"Bar": StringLiteral(string="bar")},
+            "Value": StringLiteral(string="foo"),
+            "Value2": StringLiteral(string="bar"),
         }
     )
 
 
 def test_duplicates():
-    with pytest.raises(GllParseError, match="Duplicate symbol: Value"):
+    with pytest.raises(GllParseError, match="Duplicate rule: Value"):
         parse_gll(
             [
                 Name("Value"),
                 SimpleToken.EQUAL,
-                SimpleToken.PIPE,
                 Name("Foo"),
                 SimpleToken.COLON,
                 String("foo"),
                 SimpleToken.SEMICOLON,
                 Name("Value"),
                 SimpleToken.EQUAL,
-                SimpleToken.PIPE,
                 Name("Bar"),
                 SimpleToken.COLON,
                 String("bar"),
                 SimpleToken.SEMICOLON,
             ]
         )
-
-    with pytest.raises(GllParseError, match="Duplicate rule for symbol Value: Foo"):
-        parse_gll(
-            [
-                Name("Value"),
-                SimpleToken.EQUAL,
-                SimpleToken.PIPE,
-                Name("Foo"),
-                SimpleToken.COLON,
-                String("foo"),
-                SimpleToken.PIPE,
-                Name("Foo"),
-                SimpleToken.COLON,
-                String("bar"),
-                SimpleToken.SEMICOLON,
-            ]
-        )
-
-
-def test_anonymous_rule():
-    assert parse_gll(
-        [Name("Value"), SimpleToken.EQUAL, String("foo"), SimpleToken.SEMICOLON]
-    ) == Grammar(rules={"Value": {None: StringLiteral(string="foo")}})
-
-    assert parse_gll(
-        [
-            Name("Value"),
-            SimpleToken.EQUAL,
-            SimpleToken.GROUP_START,
-            String("foo"),
-            String("bar"),
-            SimpleToken.GROUP_END,
-            SimpleToken.SEMICOLON,
-        ]
-    ) == Grammar(
-        rules={
-            "Value": {
-                None: Concatenation(
-                    [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                )
-            }
-        }
-    )
 
 
 def test_option():
@@ -292,7 +188,7 @@ def test_option():
             SimpleToken.QUESTION_MARK,
             SimpleToken.SEMICOLON,
         ]
-    ) == Grammar(rules={"Value": {None: Option(StringLiteral(string="foo"))}})
+    ) == Grammar(rules={"Value": Option(StringLiteral(string="foo"))})
 
 
 def test_option_group():
@@ -309,13 +205,11 @@ def test_option_group():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                None: Option(
-                    Concatenation(
-                        [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                    )
+            "Value": Option(
+                Concatenation(
+                    [StringLiteral(string="foo"), StringLiteral(string="bar")]
                 )
-            }
+            )
         }
     )
 
@@ -330,9 +224,7 @@ def test_repeat():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={
-            "Value": {None: Repeated(False, StringLiteral(string="foo"), None, False)}
-        }
+        rules={"Value": Repeated(False, StringLiteral(string="foo"), None, False)}
     )
 
     assert parse_gll(
@@ -344,9 +236,7 @@ def test_repeat():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={
-            "Value": {None: Repeated(True, StringLiteral(string="foo"), None, False)}
-        }
+        rules={"Value": Repeated(True, StringLiteral(string="foo"), None, False)}
     )
 
 
@@ -364,16 +254,14 @@ def test_repeated_group():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                None: Repeated(
-                    False,
-                    Concatenation(
-                        [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                    ),
-                    None,
-                    False,
-                )
-            }
+            "Value": Repeated(
+                False,
+                Concatenation(
+                    [StringLiteral(string="foo"), StringLiteral(string="bar")]
+                ),
+                None,
+                False,
+            )
         }
     )
 
@@ -390,16 +278,14 @@ def test_repeated_group():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                None: Repeated(
-                    True,
-                    Concatenation(
-                        [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                    ),
-                    None,
-                    False,
-                )
-            }
+            "Value": Repeated(
+                True,
+                Concatenation(
+                    [StringLiteral(string="foo"), StringLiteral(string="bar")]
+                ),
+                None,
+                False,
+            )
         }
     )
 
@@ -416,9 +302,7 @@ def test_repeat_separator():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={
-            "Value": {None: Repeated(False, StringLiteral(string="foo"), "bar", False)}
-        }
+        rules={"Value": Repeated(False, StringLiteral(string="foo"), "bar", False)}
     )
 
     assert parse_gll(
@@ -432,9 +316,7 @@ def test_repeat_separator():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={
-            "Value": {None: Repeated(True, StringLiteral(string="foo"), "bar", False)}
-        }
+        rules={"Value": Repeated(True, StringLiteral(string="foo"), "bar", False)}
     )
 
 
@@ -454,16 +336,14 @@ def test_repeated_group_separator():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                None: Repeated(
-                    False,
-                    Concatenation(
-                        [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                    ),
-                    "baz",
-                    False,
-                )
-            }
+            "Value": Repeated(
+                False,
+                Concatenation(
+                    [StringLiteral(string="foo"), StringLiteral(string="bar")]
+                ),
+                "baz",
+                False,
+            )
         }
     )
 
@@ -482,16 +362,14 @@ def test_repeated_group_separator():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                None: Repeated(
-                    True,
-                    Concatenation(
-                        [StringLiteral(string="foo"), StringLiteral(string="bar")]
-                    ),
-                    "baz",
-                    False,
-                )
-            }
+            "Value": Repeated(
+                True,
+                Concatenation(
+                    [StringLiteral(string="foo"), StringLiteral(string="bar")]
+                ),
+                "baz",
+                False,
+            )
         }
     )
 
@@ -508,9 +386,7 @@ def test_repeat_separator_trailing():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={
-            "Value": {None: Repeated(False, StringLiteral(string="foo"), "bar", True)}
-        }
+        rules={"Value": Repeated(False, StringLiteral(string="foo"), "bar", True)}
     )
 
 
@@ -519,9 +395,6 @@ def test_label():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             SimpleToken.GROUP_START,
             Name("field1"),
             SimpleToken.COLON,
@@ -534,14 +407,12 @@ def test_label():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": Concatenation(
-                    items=[
-                        LabeledNode("field1", StringLiteral(string="foo")),
-                        LabeledNode("field2", StringLiteral(string="bar")),
-                    ]
-                )
-            }
+            "Value": Concatenation(
+                items=[
+                    LabeledNode("field1", StringLiteral(string="foo")),
+                    LabeledNode("field2", StringLiteral(string="bar")),
+                ]
+            )
         }
     )
 
@@ -549,9 +420,6 @@ def test_label():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             Name("field0"),
             SimpleToken.COLON,
             SimpleToken.GROUP_START,
@@ -564,17 +432,15 @@ def test_label():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": LabeledNode(
-                    "field0",
-                    Concatenation(
-                        items=[
-                            StringLiteral(string="foo"),
-                            LabeledNode("field2", StringLiteral(string="bar")),
-                        ]
-                    ),
-                )
-            }
+            "Value": LabeledNode(
+                "field0",
+                Concatenation(
+                    items=[
+                        StringLiteral(string="foo"),
+                        LabeledNode("field2", StringLiteral(string="bar")),
+                    ]
+                ),
+            )
         }
     )
 
@@ -584,9 +450,6 @@ def test_label_repeated():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             Name("field1"),
             SimpleToken.COLON,
             String("foo"),
@@ -595,11 +458,9 @@ def test_label_repeated():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": LabeledNode(
-                    "field1", Repeated(False, StringLiteral(string="foo"), None, False)
-                )
-            }
+            "Value": LabeledNode(
+                "field1", Repeated(False, StringLiteral(string="foo"), None, False)
+            )
         }
     )
 
@@ -607,9 +468,6 @@ def test_label_repeated():
         [
             Name("Value"),
             SimpleToken.EQUAL,
-            SimpleToken.PIPE,
-            Name("Foobar"),
-            SimpleToken.COLON,
             Name("field1"),
             SimpleToken.COLON,
             String("foo"),
@@ -620,10 +478,8 @@ def test_label_repeated():
         ]
     ) == Grammar(
         rules={
-            "Value": {
-                "Foobar": LabeledNode(
-                    "field1", Repeated(False, StringLiteral(string="foo"), "bar", False)
-                )
-            }
+            "Value": LabeledNode(
+                "field1", Repeated(False, StringLiteral(string="foo"), "bar", False)
+            )
         }
     )
