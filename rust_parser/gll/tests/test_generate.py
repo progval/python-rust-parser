@@ -183,6 +183,27 @@ def test_label_in_option():
         g.parse("barbaz")
 
 
+def test_label_in_repeat():
+    g = generate_tatsu_grammar(
+        gll_grammar.Grammar(
+            rules={
+                "Main": gll_grammar.Repeated(
+                    False,
+                    gll_grammar.LabeledNode("label", gll_grammar.StringLiteral("foo")),
+                    None,
+                    False,
+                )
+            }
+        )
+    )
+    assert str(g) == str(compile("Main = {label: 'foo'}*;"))
+
+    assert g.parse("") == []
+    assert g.parse("foo") == {"label": "foo"}
+    assert g.parse("foo foo") == {"label": ["foo", "foo"]}
+    assert g.parse("baz") == []
+
+
 def test_repeat():
     g = generate_tatsu_grammar(
         gll_grammar.Grammar(
