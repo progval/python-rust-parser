@@ -330,7 +330,9 @@ def test_repeat():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={"Value": {None: Repeated(0, StringLiteral(string="foo"), None, False)}}
+        rules={
+            "Value": {None: Repeated(False, StringLiteral(string="foo"), None, False)}
+        }
     )
 
     assert parse_gll(
@@ -342,7 +344,9 @@ def test_repeat():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={"Value": {None: Repeated(1, StringLiteral(string="foo"), None, False)}}
+        rules={
+            "Value": {None: Repeated(True, StringLiteral(string="foo"), None, False)}
+        }
     )
 
 
@@ -362,7 +366,7 @@ def test_repeated_group():
         rules={
             "Value": {
                 None: Repeated(
-                    0,
+                    False,
                     Concatenation(
                         [StringLiteral(string="foo"), StringLiteral(string="bar")]
                     ),
@@ -388,7 +392,7 @@ def test_repeated_group():
         rules={
             "Value": {
                 None: Repeated(
-                    1,
+                    True,
                     Concatenation(
                         [StringLiteral(string="foo"), StringLiteral(string="bar")]
                     ),
@@ -412,7 +416,9 @@ def test_repeat_separator():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={"Value": {None: Repeated(0, StringLiteral(string="foo"), "bar", False)}}
+        rules={
+            "Value": {None: Repeated(False, StringLiteral(string="foo"), "bar", False)}
+        }
     )
 
     assert parse_gll(
@@ -426,7 +432,9 @@ def test_repeat_separator():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={"Value": {None: Repeated(1, StringLiteral(string="foo"), "bar", False)}}
+        rules={
+            "Value": {None: Repeated(True, StringLiteral(string="foo"), "bar", False)}
+        }
     )
 
 
@@ -448,7 +456,7 @@ def test_repeated_group_separator():
         rules={
             "Value": {
                 None: Repeated(
-                    0,
+                    False,
                     Concatenation(
                         [StringLiteral(string="foo"), StringLiteral(string="bar")]
                     ),
@@ -476,7 +484,7 @@ def test_repeated_group_separator():
         rules={
             "Value": {
                 None: Repeated(
-                    1,
+                    True,
                     Concatenation(
                         [StringLiteral(string="foo"), StringLiteral(string="bar")]
                     ),
@@ -500,7 +508,9 @@ def test_repeat_separator_trailing():
             SimpleToken.SEMICOLON,
         ]
     ) == Grammar(
-        rules={"Value": {None: Repeated(0, StringLiteral(string="foo"), "bar", True)}}
+        rules={
+            "Value": {None: Repeated(False, StringLiteral(string="foo"), "bar", True)}
+        }
     )
 
 
@@ -587,7 +597,7 @@ def test_label_repeated():
         rules={
             "Value": {
                 "Foobar": LabeledNode(
-                    "field1", Repeated(0, StringLiteral(string="foo"), None, False)
+                    "field1", Repeated(False, StringLiteral(string="foo"), None, False)
                 )
             }
         }
@@ -612,7 +622,7 @@ def test_label_repeated():
         rules={
             "Value": {
                 "Foobar": LabeledNode(
-                    "field1", Repeated(0, StringLiteral(string="foo"), "bar", False)
+                    "field1", Repeated(False, StringLiteral(string="foo"), "bar", False)
                 )
             }
         }

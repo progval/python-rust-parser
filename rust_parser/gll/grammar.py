@@ -53,7 +53,7 @@ class CharacterRange(RuleNode):
 
 
 @dataclass
-class RuleName(RuleNode):
+class SymbolName(RuleNode):
     name: str
 
 
@@ -78,7 +78,7 @@ class Option(RuleNode):
 class Repeated(RuleNode):
     """aka. 'list' in GLL"""
 
-    min_nb: int
+    positive: bool
     items: List[RuleNode]
     separator: Optional[str]
     allow_trailing: bool
@@ -101,7 +101,7 @@ def apply_labels_in_group(raw_group):
         item = raw_group[i]
         if item is _LABEL_TOKEN:
             label = group.pop()
-            assert isinstance(label, RuleName)
+            assert isinstance(label, SymbolName)
             i += 1
             next_item = raw_group[i]
             group.append(LabeledNode(label.name, next_item))
@@ -183,7 +183,6 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
     toks_it = iter(toks)
 
     for tok in toks_it:
-        print(tok)
         match tok:
 
             #####################
@@ -298,7 +297,7 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
                     raise GllParseError("missing lael before ':'")
                 else:
                     label = stack[-1][-1]
-                    if not isinstance(label, RuleName):
+                    if not isinstance(label, SymbolName):
                         raise GllParseError("{label} is not a valid label")
                 stack[-1].append(_LABEL_TOKEN)
 
@@ -311,18 +310,18 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
 
             case tokens.SimpleToken.STAR:
                 assert_state_in_rule("unexpected '*'")
-                stack[-1].append(Repeated(0, stack[-1].pop(), None, False))
+                stack[-1].append(Repeated(False, stack[-1].pop(), None, False))
 
             case tokens.SimpleToken.PLUS:
                 assert_state_in_rule("unexpected '+'")
-                stack[-1].append(Repeated(1, stack[-1].pop(), None, False))
+                stack[-1].append(Repeated(True, stack[-1].pop(), None, False))
 
             case tokens.SimpleToken.PERCENT | tokens.SimpleToken.DOUBLE_PERCENT:
                 assert_state_in_rule(f"unexpected '{tok.value}'")
                 next_token = next(toks_it)  # preempt the next token
 
                 match (stack[-1][-1], next_token):
-                    case (Repeated(min_nb, items, None, _), tokens.String(s)):
+                    case (Repeated(positive, items, None, _), tokens.String(s)):
                         stack[-1][-1].separator = s
                         stack[-1][-1].allow_trailing = (
                             tok == tokens.SimpleToken.DOUBLE_PERCENT
@@ -341,7 +340,7 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
                 assert_state_in_rule(f"unexpected name {name}")
                 assert current_symbol_name is not None, name
                 assert stack
-                stack[-1].append(RuleName(name))
+                stack[-1].append(SymbolName(name))
 
             case tokens.String(s):
                 assert_state_in_rule(f'unexpected string literal "{s}"')
