@@ -27,6 +27,9 @@ from . import grammar as gll_grammar
 
 def node_to_tatsu(node: gll_grammar.RuleNode):
     match node:
+        case gll_grammar.Empty():
+            return tatsu_grammars.EmptyClosure()
+
         case gll_grammar.LabeledNode(name, item):
             return tatsu_grammars.Named(AST(name=name, exp=node_to_tatsu(item)))
 

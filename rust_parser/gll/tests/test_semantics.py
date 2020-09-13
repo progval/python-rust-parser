@@ -22,7 +22,7 @@ import tatsu
 from tatsu import exceptions
 
 from .. import grammar as gll_grammar
-from ..semantics import generate_semantics_code
+from ..semantics import generate_semantics_code, Maybe, NoneTree, StrLeaf
 from ..generate import generate_tatsu_grammar
 
 
@@ -97,12 +97,16 @@ def test_labeled_concatenation():
         @dataclasses.dataclass
         class Main:
             @classmethod
-            def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
-                return cls(**ast)
+            def from_ast(cls, ast) -> Main:
+                return cls(
+                    foo_field=rust_parser.gll.semantics.StrLeaf.from_ast(ast.foo_field),
+                    bar_field=rust_parser.gll.semantics.Maybe[rust_parser.gll.semantics.StrLeaf].from_ast(ast.bar_field),
+                    baz_field=rust_parser.gll.semantics.StrLeaf.from_ast(ast.baz_field),
+                )
 
-            foo_field: str
-            bar_field: typing.Optional[str]
-            baz_field: str
+            foo_field: rust_parser.gll.semantics.StrLeaf
+            bar_field: rust_parser.gll.semantics.Maybe[rust_parser.gll.semantics.StrLeaf]
+            baz_field: rust_parser.gll.semantics.StrLeaf
 
 
         class Semantics:
@@ -116,8 +120,12 @@ def test_labeled_concatenation():
     semantics = namespace["Semantics"]()
     Main = namespace["Main"]
 
-    assert g.parse("foo bar baz", semantics=semantics) == Main("foo", "bar", "baz")
-    assert g.parse("foo baz", semantics=semantics) == Main("foo", None, "baz")
+    assert g.parse("foo bar baz", semantics=semantics) == Main(
+        "foo", Maybe[StrLeaf].Just("bar"), "baz"
+    )
+    assert g.parse("foo baz", semantics=semantics) == Main(
+        "foo", Maybe[StrLeaf].Nothing(), "baz"
+    )
     with pytest.raises(exceptions.FailedToken):
         g.parse("foo", semantics=semantics)
     with pytest.raises(exceptions.FailedToken):
@@ -260,29 +268,38 @@ def test_labeled_alternation_labeled_alternation():
             @dataclasses.dataclass
             class Foo:
                 @classmethod
-                def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Foo:
-                    return cls(**ast)
+                def from_ast(cls, ast) -> Foo:
+                    return cls(
+                        foo1=rust_parser.gll.semantics.StrLeaf.from_ast(ast.foo1),
+                        foo2=rust_parser.gll.semantics.StrLeaf.from_ast(ast.foo2),
+                    )
 
-                foo1: str
-                foo2: str
+                foo1: rust_parser.gll.semantics.StrLeaf
+                foo2: rust_parser.gll.semantics.StrLeaf
 
             @dataclasses.dataclass
             class Bar:
                 @classmethod
-                def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Bar:
-                    return cls(**ast)
+                def from_ast(cls, ast) -> Bar:
+                    return cls(
+                        bar1=rust_parser.gll.semantics.StrLeaf.from_ast(ast.bar1),
+                        bar2=rust_parser.gll.semantics.StrLeaf.from_ast(ast.bar2),
+                    )
 
-                bar1: str
-                bar2: str
+                bar1: rust_parser.gll.semantics.StrLeaf
+                bar2: rust_parser.gll.semantics.StrLeaf
 
             @dataclasses.dataclass
             class Baz:
                 @classmethod
-                def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Baz:
-                    return cls(**ast)
+                def from_ast(cls, ast) -> Baz:
+                    return cls(
+                        baz1=rust_parser.gll.semantics.StrLeaf.from_ast(ast.baz1),
+                        baz2=rust_parser.gll.semantics.StrLeaf.from_ast(ast.baz2),
+                    )
 
-                baz1: str
-                baz2: str
+                baz1: rust_parser.gll.semantics.StrLeaf
+                baz2: rust_parser.gll.semantics.StrLeaf
 
 
         class Semantics:
@@ -352,3 +369,65 @@ def test_option():
     assert isinstance(g.parse("", semantics=semantics), Main.Nothing)
     assert g.parse("foo", semantics=semantics) == Main.Just("foo")
     assert isinstance(g.parse("foo", semantics=semantics), Main.Just)
+
+
+def test_empty_in_concatenation():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode(
+                        "foo_field", gll_grammar.StringLiteral("foo")
+                    ),
+                    gll_grammar.LabeledNode("bar_field", gll_grammar.Empty()),
+                    gll_grammar.LabeledNode(
+                        "baz_field", gll_grammar.StringLiteral("baz")
+                    ),
+                ]
+            )
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @dataclasses.dataclass
+        class Main:
+            @classmethod
+            def from_ast(cls, ast) -> Main:
+                return cls(
+                    foo_field=rust_parser.gll.semantics.StrLeaf.from_ast(ast.foo_field),
+                    bar_field=rust_parser.gll.semantics.NoneTree.from_ast(ast.bar_field),
+                    baz_field=rust_parser.gll.semantics.StrLeaf.from_ast(ast.baz_field),
+                )
+
+            foo_field: rust_parser.gll.semantics.StrLeaf
+            bar_field: rust_parser.gll.semantics.NoneTree
+            baz_field: rust_parser.gll.semantics.StrLeaf
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert g.parse("foo baz", semantics=semantics) == Main("foo", NoneTree(), "baz")
+    with pytest.raises(exceptions.FailedToken):
+        g.parse("foo", semantics=semantics)
+    with pytest.raises(exceptions.FailedToken):
+        g.parse("baz", semantics=semantics)

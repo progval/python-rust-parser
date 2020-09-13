@@ -17,6 +17,8 @@
 
 """Generates semantic actions for use by a Tatsu parser."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 import enum
 import textwrap
@@ -149,6 +151,19 @@ class Maybe(Generic[T]):
         return new_cls
 
 
+@dataclass
+class NoneTree:
+    @classmethod
+    def from_ast(cls, ast) -> NoneTree:
+        return NoneTree()
+
+
+class StrLeaf(str):
+    @classmethod
+    def from_ast(cls, ast) -> StrLeaf:
+        return cls(ast)
+
+
 def str_type(type_: type) -> str:
     """
 
@@ -158,7 +173,7 @@ def str_type(type_: type) -> str:
     'str'
     """
     if type_ is str:
-        return "str"
+        return "rust_parser.gll.semantics.StrLeaf"
     else:
         return str(type_)
 
@@ -166,13 +181,16 @@ def str_type(type_: type) -> str:
 def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str]):
     """From a rule's description, return a type representing its AST."""
     match node:
+        case grammar.Empty():
+            return "rust_parser.gll.semantics.NoneTree"
+
         case grammar.LabeledNode(name, item):
             # TODO: do something with the label?
             return node_to_type(item, rule_name_to_type_name)
 
         case grammar.StringLiteral(string):
             # TODO: NewType?
-            return str
+            return "rust_parser.gll.semantics.StrLeaf"
 
         case grammar.CharacterRange(from_char, to_char):
             raise NotImplementedError("character ranges")
@@ -186,18 +204,16 @@ def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str])
             members = tuple(
                 node_to_type(item, rule_name_to_type_name) for item in items
             )
-            return typing.Tuple[members]
+            return str(typing.Tuple[members])
 
         case grammar.Alternation(items):
-            # TODO: An alternation nested inside a rule. That's a little tricky.
-            raise NotImplementedError("Alternations nested in a rule.")
+            raise NotImplementedError("Alternation nested in rule")  # TODO
 
         case grammar.Option(item):
-            # TODO: use Maybe
-            return typing.Optional[node_to_type(item, rule_name_to_type_name)]
+            return f"rust_parser.gll.semantics.Maybe[{node_to_type(item, rule_name_to_type_name)}]"
 
         case grammar.Repeated(positive, item, separator, allow_trailing):
-            return typing.List[node_to_type(item, rule_name_to_type_name)]
+            raise NotImplementedError("Repeated nested in rule")  # TODO
 
         case _:
             # should be unreachable
@@ -208,16 +224,17 @@ def _node_to_field_code(
     node: grammar.RuleNode,
     default_name: str,
     rule_name_to_type_name: Dict[str, str],
-) -> str:
+) -> (str, str):
     """Returns the source code to describe this node as a field in a dataclass."""
     match node:
         case grammar.LabeledNode(name, item):
             type_ = node_to_type(item, rule_name_to_type_name)
-            return f"{name}: {str_type(type_)}"
+            return (name, str_type(type_))
 
         case _:
+            print(repr(node))
             type_ = node_to_type(node, rule_name_to_type_name)
-            return f"{default_name}: {str_type(type_)}"
+            return (default_name, str_type(type_))
 
 
 def node_to_type_code(
@@ -229,6 +246,14 @@ def node_to_type_code(
     representing its AST."""
 
     match node:
+        case grammar.Empty():
+            return textwrap.dedent(
+                f"""
+                class {type_name}:
+                    pass
+                """
+            )
+
         case grammar.LabeledNode(name, item):
             # TODO: if the type_name was auto-generated, use the label instead
             return node_to_type_code(
@@ -261,23 +286,32 @@ def node_to_type_code(
             )
 
         case grammar.Concatenation(items):
+            field_names_and_types = [
+                _node_to_field_code(item, f"field_{i}", rule_name_to_type_name)
+                for (i, item) in enumerate(items)
+            ]
+
+            args = "".join(
+                f'''
+                                {name}={type_}.from_ast(ast.{name}),'''
+                for (i, (name, type_)) in enumerate(field_names_and_types)
+            )
+
             lines = [
                 textwrap.dedent(
                     f"""\
                     @dataclasses.dataclass
                     class {type_name}:
                         @classmethod
-                        def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> {type_name}:
-                            return cls(**ast)
+                        def from_ast(cls, ast) -> {type_name}:
+                            return cls({args}
+                            )
                     """
                 )
             ]
             lines.extend(
-                (
-                    "    "
-                    + _node_to_field_code(item, f"field_{i}", rule_name_to_type_name)
-                )
-                for (i, item) in enumerate(items)
+                f"    {name}: {type_}"
+                for (name, type_) in field_names_and_types
             )
             lines.append("")
             return "\n".join(lines)
@@ -301,7 +335,7 @@ def node_to_type_code(
                         # else, generate a name.
                         # TODO: make sure it's unique
                         name = f"{type_name}_{i}"
-                        blocks = node_to_type_code(
+                        block = node_to_type_code(
                             name, item, rule_name_to_type_name,
                         )
 

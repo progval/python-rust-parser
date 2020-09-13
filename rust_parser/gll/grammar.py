@@ -36,6 +36,11 @@ class RuleNode:
 
 
 @dataclass
+class Empty(RuleNode):
+    pass
+
+
+@dataclass
 class LabeledNode(RuleNode):
     name: str
     item: RuleNode
@@ -116,7 +121,7 @@ def apply_labels_in_group(raw_group):
 
 def apply_alternation_in_group(raw_group):
     if len(raw_group) == 0:
-        raise GllParseError(f"Empty group in rule {current_rule_name}")
+        return Empty()
     elif len(raw_group) == 1:
         return raw_group[0]
     else:
