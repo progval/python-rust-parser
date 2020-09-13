@@ -105,6 +105,28 @@ def test_alternation():
     )
 
 
+def test_alternation_leading_pipe():
+    assert parse_gll(
+        [
+            Name("Value"),
+            SimpleToken.EQUAL,
+            SimpleToken.GROUP_START,
+            SimpleToken.PIPE,
+            String("foo"),
+            SimpleToken.PIPE,
+            String("bar"),
+            SimpleToken.GROUP_END,
+            SimpleToken.SEMICOLON,
+        ]
+    ) == Grammar(
+        rules={
+            "Value": Alternation(
+                items=[StringLiteral(string="foo"), StringLiteral(string="bar")]
+            )
+        }
+    )
+
+
 def test_alternation_groups():
     assert parse_gll(
         [

@@ -212,6 +212,12 @@ def parse_gll(toks: Iterable[tokens.Token]) -> Grammar:
 
                 rule = postprocess_group(stack[0])
 
+                # GLL allows writing 'rule = | Var1 | Var2', which
+                # should be interpreted as only two variants, not three.
+                match rule:
+                    case Alternation([Concatenation([]), *rest]):
+                        rule = Alternation(rest)
+
                 rules[current_rule_name] = rule
 
                 state = _State.START
