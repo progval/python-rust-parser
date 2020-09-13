@@ -228,7 +228,7 @@ def node_to_constructor(
 
         case grammar.SymbolName(rule_name):
             # alias of an other rule
-            return f"{rule_name_to_type_name[rule_name]}.from_ast(var_name)"
+            return f"{rule_name_to_type_name[rule_name]}.from_ast({var_name})"
 
         case grammar.Concatenation(items):
             # TODO: use namedtuple if they have names
@@ -331,7 +331,7 @@ def node_to_type_code(
                 for (name, item) in zip(field_names, items)
             ]
             field_types = [
-                node_to_type(item, name)
+                node_to_type(item, rule_name_to_type_name)
                 for (name, item) in zip(field_names, items)
             ]
 
