@@ -164,20 +164,6 @@ class StrLeaf(str):
         return cls(ast)
 
 
-def str_type(type_: type) -> str:
-    """
-
-    >>> str_type(typing.Optional[str])
-    'str'
-    >>> str_type(str)
-    'str'
-    """
-    if type_ is str:
-        return "rust_parser.gll.semantics.StrLeaf"
-    else:
-        return str(type_)
-
-
 def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str]):
     """From a rule's description, return a type representing its AST."""
     match node:
@@ -228,13 +214,10 @@ def _node_to_field_code(
     """Returns the source code to describe this node as a field in a dataclass."""
     match node:
         case grammar.LabeledNode(name, item):
-            type_ = node_to_type(item, rule_name_to_type_name)
-            return (name, str_type(type_))
+            return (name, node_to_type(item, rule_name_to_type_name))
 
         case _:
-            print(repr(node))
-            type_ = node_to_type(node, rule_name_to_type_name)
-            return (default_name, str_type(type_))
+            return (default_name, node_to_type(node, rule_name_to_type_name))
 
 
 def node_to_type_code(
