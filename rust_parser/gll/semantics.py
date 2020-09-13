@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import enum
 import textwrap
 import typing
-from typing import Dict, Generic, Optional, Type, TypeVar
+from typing import Dict, Generic, List, Optional, Type, TypeVar
 
 from tatsu.util import safe_name
 
@@ -151,6 +151,19 @@ class Maybe(Generic[T]):
         return new_cls
 
 
+class ListNode(List[T], Generic[T]):
+    __cache = {}
+    """See Maybe.__cache"""
+
+    @classmethod
+    def from_ast(cls, ast):
+        return cls(map(cls.__Item.from_ast, ast))
+
+    def __class_getitem__(cls, type_param):
+        return type(f"ListNode[{type_param}]", (cls,), {"_ListNode__Item": type_param})
+
+
+# TODO: ideally, this should be None to be pythonic, but I can't find how to do it :(
 @dataclass
 class NoneTree:
     @classmethod
@@ -199,7 +212,7 @@ def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str])
             return f"rust_parser.gll.semantics.Maybe[{node_to_type(item, rule_name_to_type_name)}]"
 
         case grammar.Repeated(positive, item, separator, allow_trailing):
-            raise NotImplementedError("Repeated nested in rule")  # TODO
+            return f"rust_parser.gll.semantics.ListNode[{node_to_type(item, rule_name_to_type_name)}]"
 
         case _:
             # should be unreachable
@@ -351,7 +364,7 @@ def node_to_type_code(
             ]
             return "\n\n".join(blocks)
 
-        case grammar.Repeated(positive, items, separator, allow_trailing):
+        case grammar.Repeated(positive, item, separator, allow_trailing):
             # now I can see a use for that, but I'm just lazy, let's do it later
             raise NotImplementedError("Entire rule is repeated.")
 
