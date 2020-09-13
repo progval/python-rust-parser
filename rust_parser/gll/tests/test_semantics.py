@@ -43,7 +43,7 @@ def test_simple_grammar():
 
         class Foo(str):
             @classmethod
-            def from_ast(cls, ast):
+            def from_ast(cls, ast: str) -> Foo:
                 return cls(ast)
 
 
@@ -97,7 +97,7 @@ def test_labeled_concatenation():
         @dataclasses.dataclass
         class Main:
             @classmethod
-            def from_ast(cls, ast):
+            def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
                 return cls(**ast)
 
             foo_field: str
@@ -152,7 +152,7 @@ def test_labeled_alternation():
         @typing.sealed
         class Main(metaclass=rust_parser.gll.semantics.ADT):
             @classmethod
-            def from_ast(cls, ast):
+            def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
                 ((variant_name, subtree),) = ast.items()
                 cls = getattr(cls, variant_name)
                 assert issubclass(cls, Main)  # sealed
@@ -162,17 +162,17 @@ def test_labeled_alternation():
 
             class Foo(str):
                 @classmethod
-                def from_ast(cls, ast):
+                def from_ast(cls, ast: str) -> Foo:
                     return cls(ast)
 
             class Bar(str):
                 @classmethod
-                def from_ast(cls, ast):
+                def from_ast(cls, ast: str) -> Bar:
                     return cls(ast)
 
             class Baz(str):
                 @classmethod
-                def from_ast(cls, ast):
+                def from_ast(cls, ast: str) -> Baz:
                     return cls(ast)
 
 

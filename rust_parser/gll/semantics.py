@@ -157,7 +157,7 @@ def node_to_type_code(
                 f"""\
                 class {type_name}(str):
                     @classmethod
-                    def from_ast(cls, ast):
+                    def from_ast(cls, ast: str) -> {type_name}:
                         return cls(ast)
                 """
             )
@@ -172,7 +172,7 @@ def node_to_type_code(
                 f"""\
                 class {type_name}({target_name}):
                     @classmethod
-                    def from_ast(cls, ast):
+                    def from_ast(cls, ast: str) -> {type_name}:
                         return cls(ast)
                 """
             )
@@ -184,7 +184,7 @@ def node_to_type_code(
                     @dataclasses.dataclass
                     class {type_name}:
                         @classmethod
-                        def from_ast(cls, ast):
+                        def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> {type_name}:
                             return cls(**ast)
                     """
                 )
@@ -232,7 +232,7 @@ def node_to_type_code(
                     @typing.sealed
                     class {type_name}(metaclass=rust_parser.gll.semantics.ADT):
                         @classmethod
-                        def from_ast(cls, ast):
+                        def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> {type_name}:
                             ((variant_name, subtree),) = ast.items()
                             cls = getattr(cls, variant_name)
                             assert issubclass(cls, {type_name})  # sealed
