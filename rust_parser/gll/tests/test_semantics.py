@@ -306,3 +306,49 @@ def test_labeled_alternation_labeled_alternation():
     assert isinstance(g.parse("three four", semantics=semantics), Main.Baz)
     with pytest.raises(exceptions.FailedParse):
         g.parse("qux", semantics=semantics)
+
+
+def test_option():
+    grammar = gll_grammar.Grammar(
+        rules={"Main": gll_grammar.Option(gll_grammar.StringLiteral("foo"))}
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        class MainInner(str):
+            @classmethod
+            def from_ast(cls, ast: str) -> MainInner:
+                return cls(ast)
+
+
+        Main = rust_parser.gll.semantics.Maybe[MainInner]
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert issubclass(Main.Nothing, Main)
+    assert issubclass(Main.Just, Main)
+
+    assert g.parse("", semantics=semantics) == Main.Nothing()
+    assert isinstance(g.parse("", semantics=semantics), Main.Nothing)
+    assert g.parse("foo", semantics=semantics) == Main.Just("foo")
+    assert isinstance(g.parse("foo", semantics=semantics), Main.Just)

@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import enum
 import textwrap
 import typing
-from typing import Dict, Optional, Type, TypeVar
+from typing import Dict, Generic, Optional, Type, TypeVar
 
 from tatsu.util import safe_name
 
@@ -96,6 +96,59 @@ class ADT(type):
 
         return adt
 
+
+@typing.sealed
+class Maybe(Generic[T]):
+    """An Option like it ought to be: an ADT, not like Python's Optional[T].
+    """
+
+    # Ideally this would be named Option/None/Some for consistency with Rust,
+    # but it clashes with Python names, so this uses Haskell names instead.
+
+    # FIXME: This leaks memory if the set of types is not bounded. Maybe we can
+    # do it with a WeakKeyDictionary?
+    __cache = {}
+    """We *need* to memoize the generated classes, because otherwise,
+    `Maybe[int].Nothing()` would not be equal to `Maybe[int].Nothing()`, as these
+    would be two different Nothings.
+    """
+
+    @classmethod
+    def from_ast(cls, ast):
+        if ast:
+            return cls.Just.from_ast(ast)
+        else:
+            return cls.Nothing()
+
+    def __class_getitem__(cls, type_param):
+        """Generates Just and Nothing variants for the non-generic class."""
+        if type_param in cls.__cache:
+            return cls.__cache[type_param]
+        new_cls = type(f"Maybe[{type_param}]", (cls,), {})
+
+        @dataclass
+        class Just(new_cls):
+            item: type_param
+
+            @classmethod
+            def from_ast(cls, ast):
+                return Just(type_param.from_ast(ast))
+
+        @dataclass
+        class Nothing(new_cls):
+            pass
+
+        new_cls.Just = Just
+        new_cls.Nothing = Nothing
+
+        assert issubclass(Just, new_cls)
+        assert issubclass(Nothing, new_cls)
+
+        cls.__cache[type_param] = new_cls
+
+        return new_cls
+
+
 def str_type(type_: type) -> str:
     """
 
@@ -140,6 +193,7 @@ def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str])
             raise NotImplementedError("Alternations nested in a rule.")
 
         case grammar.Option(item):
+            # TODO: use Maybe
             return typing.Optional[node_to_type(item, rule_name_to_type_name)]
 
         case grammar.Repeated(positive, item, separator, allow_trailing):
@@ -272,9 +326,13 @@ def node_to_type_code(
             return "\n".join(blocks)
 
         case grammar.Option(item):
-            # That sucks... the whole rule is an option.
-            # I don't see any use for that, so I'll implement it later if needed.
-            raise NotImplementedError("Entire rule is an option.")
+            # TODO: better name
+            name = f"{type_name}Inner"
+            blocks = [
+                node_to_type_code(name, item, rule_name_to_type_name),
+                f"{type_name} = rust_parser.gll.semantics.Maybe[{name}]\n",
+            ]
+            return "\n\n".join(blocks)
 
         case grammar.Repeated(positive, items, separator, allow_trailing):
             # now I can see a use for that, but I'm just lazy, let's do it later
