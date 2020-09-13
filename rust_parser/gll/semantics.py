@@ -45,7 +45,7 @@ class ADT(type):
             # get the class defined inside this one.
             variant_source = attributes[variant_name]
 
-            # It has only one parent because we defined it that. Get the parent.
+            # It has only one parent because we defined it that way. Get the parent.
             variant_mro = variant_source.mro()
             (_variant, *variant_parents, _object) = variant_mro
             assert _variant is variant_source
