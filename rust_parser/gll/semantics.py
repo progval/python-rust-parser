@@ -51,9 +51,15 @@ class ADT(type):
             assert _variant is variant_source
             assert _object is object
 
+            # We need to use .__func__ to get the unbound method, or it would be
+            # bound to the old class instead of the new one. (ie. using
+            # 'variant_source.from_ast' directly would return instances of
+            # 'variant_source', instead of instances of 'variant')
+            variant_from_ast = classmethod(variant_source.from_ast.__func__)
+
             # Create a similar class, which inherits the adt in addition to its
             # original parent
-            variant = type(variant_name, (parent, adt), {"from_ast": variant_source.from_ast})
+            variant = type(variant_name, (parent, adt), {"from_ast": variant_from_ast})
 
             # Replace the old one with the one we just created
             setattr(adt, variant_name, variant)

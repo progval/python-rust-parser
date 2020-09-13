@@ -188,7 +188,10 @@ def test_labeled_alternation():
     Main = namespace["Main"]
 
     assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
+    assert isinstance(g.parse("foo", semantics=semantics), Main.Foo)
     assert g.parse("bar", semantics=semantics) == Main.Bar("bar")
+    assert isinstance(g.parse("bar", semantics=semantics), Main.Bar)
     assert g.parse("baz", semantics=semantics) == Main.Baz("baz")
+    assert isinstance(g.parse("baz", semantics=semantics), Main.Baz)
     with pytest.raises(exceptions.FailedParse):
         g.parse("qux", semantics=semantics)
