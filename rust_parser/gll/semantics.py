@@ -296,7 +296,7 @@ def generate_semantics_code(grammar: grammar.Grammar) -> str:
     blocks = [
         "from __future__ import annotations",
         "\n".join(f"import {name}" for name in _IMPORTS),
-        "import rust_parser\n",
+        "import rust_parser.gll.semantics\n",
     ]
 
     for (rule_name, rule) in grammar.rules.items():

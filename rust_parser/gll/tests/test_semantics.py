@@ -38,7 +38,7 @@ def test_simple_grammar():
         import dataclasses
         import typing
 
-        import rust_parser
+        import rust_parser.gll.semantics
 
 
         class Foo(str):
@@ -91,7 +91,7 @@ def test_labeled_concatenation():
         import dataclasses
         import typing
 
-        import rust_parser
+        import rust_parser.gll.semantics
 
 
         @dataclasses.dataclass
@@ -146,7 +146,7 @@ def test_labeled_alternation():
         import dataclasses
         import typing
 
-        import rust_parser
+        import rust_parser.gll.semantics
 
 
         @typing.sealed
