@@ -32,8 +32,33 @@ _IMPORTS = ["dataclasses", "typing"]
 """Modules imported by the generated source code."""
 
 
-class TargetAstNode(type):
-    """A node of the target AST (ie. the one parsed by the generated parser)."""
+class ADT(type):
+    """A metaclass that makes the attributes listed in the 'variants' attribute
+    a subclass of the class."""
+    def __new__(cls, name, parents, attributes):
+        variant_names = attributes.pop("_variants")
+
+        # The class that we are producing
+        adt = type(name, parents, attributes)
+
+        for variant_name in variant_names:
+            # get the class defined inside this one.
+            variant_source = attributes[variant_name]
+
+            # It has only one parent because we defined it that. Get the parent.
+            variant_mro = variant_source.mro()
+            (_variant, parent, _object) = variant_mro
+            assert _variant is variant_source
+            assert _object is object
+
+            # Create a similar class, which inherits the adt in addition to its
+            # original parent
+            variant = type(variant_name, (parent, adt), {"from_ast": variant_source.from_ast})
+
+            # Replace the old one with the one we just created
+            setattr(adt, variant_name, variant)
+
+        return adt
 
 
 def str_type(type_: type) -> str:
@@ -110,7 +135,6 @@ def node_to_type_code(
     type_name: str,
     node: grammar.RuleNode,
     rule_name_to_type_name: Dict[str, str],
-    parent: Optional[str] = None
 ) -> str:
     """From a node description, return the source code of a class
     representing its AST."""
@@ -119,57 +143,40 @@ def node_to_type_code(
         case grammar.LabeledNode(name, item):
             # TODO: if the type_name was auto-generated, use the label instead
             return node_to_type_code(
-                type_name, item, rule_name_to_type_name, parent=parent,
+                type_name, item, rule_name_to_type_name,
             )
 
         case grammar.StringLiteral(string):
-            if parent:
-                return textwrap.dedent(
-                    f"""\
-                    class {type_name}(str, {parent}):
-                        @classmethod
-                        def from_ast(cls, ast):
-                            return cls(ast)
-                    """
-                )
-            else:
-                return textwrap.dedent(
-                    f"""\
-                    class {type_name}(str):
-                        @classmethod
-                        def from_ast(cls, ast):
-                            return cls(ast)
-                    """
-                )
+            return textwrap.dedent(
+                f"""\
+                class {type_name}(str):
+                    @classmethod
+                    def from_ast(cls, ast):
+                        return cls(ast)
+                """
+            )
 
         case grammar.CharacterRange(from_char, to_char):
             raise NotImplementedError("character ranges")
 
-        case grammar.SymbolName(name) if parent:
+        case grammar.SymbolName(name):
             # alias of an other rule
             target_name = rule_name_to_type_name[name]
-            if parent:
-                code = f"class {type_name}({target_name}, {parent}):\n    pass\n"
-            else:
-                return textwrap.dedent(
-                    f"""\
-                    class {type_name}({target_name}):
-                        @classmethod
-                        def from_ast(cls, ast):
-                            return cls(ast)
-                    """
-                )
+            return textwrap.dedent(
+                f"""\
+                class {type_name}({target_name}):
+                    @classmethod
+                    def from_ast(cls, ast):
+                        return cls(ast)
+                """
+            )
 
         case grammar.Concatenation(items):
-            if parent:
-                inheritance = f"({parent})"
-            else:
-                inheritance = ""
             lines = [
                 textwrap.dedent(
                     f"""\
                     @dataclasses.dataclass
-                    class {type_name}{inheritance}:
+                    class {type_name}:
                         @classmethod
                         def from_ast(cls, ast):
                             return cls(**ast)
@@ -190,31 +197,15 @@ def node_to_type_code(
             # Ideally, we would use algebraic data types here.
             # Bad news: Python doesn't have ADTs.
             # Good news: PEP 622 is close enough, so we'll use that.
-            if parent:
-                inheritance = f"({parent})"
-            else:
-                inheritance = ""
-            blocks = [
-                textwrap.dedent(
-                    f"""\
-                    @typing.sealed
-                    class {type_name}{inheritance}:
-                        @staticmethod
-                        def from_ast(ast):
-                            ((variant_name, subtree),) = ast.items()
-                            cls = globals()[variant_name]
-                            assert issubclass(cls, {type_name})  # sealed
-                            return cls.from_ast(subtree)
-                    """
-                )
-            ]
+            blocks = []
+            variant_names = []
             for (i, item) in enumerate(items):
                 match item:
                     case grammar.LabeledNode(name, item):
                         # We're in luck! We have a human-supplied name for this variant
                         # TODO: make sure it's unique
                         block = node_to_type_code(
-                            name, item, rule_name_to_type_name, parent=type_name,
+                            name, item, rule_name_to_type_name,
                         )
 
                     case _:
@@ -222,12 +213,35 @@ def node_to_type_code(
                         # TODO: make sure it's unique
                         name = f"{type_name}_{i}"
                         blocks = node_to_type_code(
-                            name, item, rule_name_to_type_name, parent=type_name,
+                            name, item, rule_name_to_type_name,
                         )
 
-                blocks.append(block)
+                variant_names.append(name)
+                blocks.append(textwrap.indent(block, "    "))
 
-            return "\n\n".join(blocks)
+            blocks.insert(
+                0,
+                textwrap.dedent(
+                    f"""\
+                    @typing.sealed
+                    class {type_name}(metaclass=rust_parser.gll.semantics.ADT):
+                        @classmethod
+                        def from_ast(cls, ast):
+                            ((variant_name, subtree),) = ast.items()
+                            cls = getattr(cls, variant_name)
+                            assert issubclass(cls, {type_name})  # sealed
+                            return cls.from_ast(subtree)
+
+                        _variants = ({
+                            ', '.join(
+                                f'"{variant_name}"' for variant_name in variant_names
+                            )
+                        })
+                    """
+                )
+            )
+
+            return "\n".join(blocks)
 
         case grammar.Option(item):
             # That sucks... the whole rule is an option.
@@ -268,7 +282,8 @@ def generate_semantics_code(grammar: grammar.Grammar) -> str:
 
     blocks = [
         "from __future__ import annotations",
-        "".join(f"import {name}\n" for name in _IMPORTS)
+        "\n".join(f"import {name}" for name in _IMPORTS),
+        "import rust_parser\n",
     ]
 
     for (rule_name, rule) in grammar.rules.items():

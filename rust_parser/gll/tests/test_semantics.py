@@ -38,6 +38,8 @@ def test_simple_grammar():
         import dataclasses
         import typing
 
+        import rust_parser
+
 
         class Foo(str):
             @classmethod
@@ -88,6 +90,8 @@ def test_labeled_concatenation():
 
         import dataclasses
         import typing
+
+        import rust_parser
 
 
         @dataclasses.dataclass
@@ -142,33 +146,34 @@ def test_labeled_alternation():
         import dataclasses
         import typing
 
+        import rust_parser
+
 
         @typing.sealed
-        class Main:
-            @staticmethod
-            def from_ast(ast):
+        class Main(metaclass=rust_parser.gll.semantics.ADT):
+            @classmethod
+            def from_ast(cls, ast):
                 ((variant_name, subtree),) = ast.items()
-                cls = globals()[variant_name]
+                cls = getattr(cls, variant_name)
                 assert issubclass(cls, Main)  # sealed
                 return cls.from_ast(subtree)
 
+            _variants = ("Foo", "Bar", "Baz")
 
-        class Foo(str, Main):
-            @classmethod
-            def from_ast(cls, ast):
-                return cls(ast)
+            class Foo(str):
+                @classmethod
+                def from_ast(cls, ast):
+                    return cls(ast)
 
+            class Bar(str):
+                @classmethod
+                def from_ast(cls, ast):
+                    return cls(ast)
 
-        class Bar(str, Main):
-            @classmethod
-            def from_ast(cls, ast):
-                return cls(ast)
-
-
-        class Baz(str, Main):
-            @classmethod
-            def from_ast(cls, ast):
-                return cls(ast)
+            class Baz(str):
+                @classmethod
+                def from_ast(cls, ast):
+                    return cls(ast)
 
 
         class Semantics:
@@ -181,12 +186,9 @@ def test_labeled_alternation():
     exec(sc, namespace)
     semantics = namespace["Semantics"]()
     Main = namespace["Main"]
-    Foo = namespace["Foo"]
-    Bar = namespace["Bar"]
-    Baz = namespace["Baz"]
 
-    assert g.parse("foo", semantics=semantics) == Foo("foo")
-    assert g.parse("bar", semantics=semantics) == Bar("bar")
-    assert g.parse("baz", semantics=semantics) == Bar("baz")
+    assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
+    assert g.parse("bar", semantics=semantics) == Main.Bar("bar")
+    assert g.parse("baz", semantics=semantics) == Main.Baz("baz")
     with pytest.raises(exceptions.FailedParse):
         g.parse("qux", semantics=semantics)
