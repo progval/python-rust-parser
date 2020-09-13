@@ -47,19 +47,26 @@ class ADT(type):
 
             # It has only one parent because we defined it that. Get the parent.
             variant_mro = variant_source.mro()
-            (_variant, parent, _object) = variant_mro
+            (_variant, *variant_parents, _object) = variant_mro
             assert _variant is variant_source
             assert _object is object
 
-            # We need to use .__func__ to get the unbound method, or it would be
-            # bound to the old class instead of the new one. (ie. using
-            # 'variant_source.from_ast' directly would return instances of
-            # 'variant_source', instead of instances of 'variant')
-            variant_from_ast = classmethod(variant_source.from_ast.__func__)
+            variant_attributes = {}
+            for (attr_name, attr) in variant_source.__dict__.items():
+                if hasattr(attr, "__self__"):
+                    # We need to use .__func__ to get the unbound method, or it would be
+                    # bound to the old class instead of the new one. (ie. using
+                    # 'variant_source.from_ast' directly would return instances of
+                    # 'variant_source', instead of instances of 'variant')
+                    variant_attributes[attr_name] = attr.__func__
+                else:
+                    variant_attributes[attr_name] = attr
 
             # Create a similar class, which inherits the adt in addition to its
-            # original parent
-            variant = type(variant_name, (parent, adt), {"from_ast": variant_from_ast})
+            # original parents
+            variant = type(
+                variant_name, (*variant_parents, adt), variant_attributes,
+            )
 
             # Replace the old one with the one we just created
             setattr(adt, variant_name, variant)
