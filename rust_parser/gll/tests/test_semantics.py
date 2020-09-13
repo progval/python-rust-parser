@@ -500,6 +500,72 @@ def test_sequence_in_concatenation():
         g.parse("baz", semantics=semantics)
 
 
+def test_alternation_with_anonymous_variant_in_concatenation():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode(
+                        "foo_field", gll_grammar.StringLiteral("foo")
+                    ),
+                    gll_grammar.LabeledNode(
+                        "bar_field",
+                        gll_grammar.Alternation(
+                            [
+                                gll_grammar.LabeledNode(
+                                    "Bar1", gll_grammar.StringLiteral("bar1")
+                                ),
+                                gll_grammar.StringLiteral("bar2"),
+                            ]
+                        ),
+                    ),
+                ]
+            )
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @dataclasses.dataclass
+        class Main:
+            @classmethod
+            def from_ast(cls, ast) -> Main:
+                return cls(
+                    foo_field=str(ast.foo_field),
+                    bar_field=(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict(Bar1=(lambda: str(ast.Bar1)), Variant1=(lambda: str(ast.Variant1))))(),
+                )
+
+            foo_field: str
+            bar_field: typing.Union[str, None]
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert g.parse("foo bar1 baz", semantics=semantics) == Main("foo", "bar1")
+    assert g.parse("foo bar2 baz", semantics=semantics) == Main("foo", None)
+    with pytest.raises(exceptions.FailedParse):
+        g.parse("foo baz", semantics=semantics)
+
+
 def test_alternation_in_concatenation():
     grammar = gll_grammar.Grammar(
         rules={
@@ -547,7 +613,7 @@ def test_alternation_in_concatenation():
             def from_ast(cls, ast) -> Main:
                 return cls(
                     foo_field=str(ast.foo_field),
-                    bar_field=(lambda constructors: constructors[list(set(constructors) & set(ast))[0]])(dict(Bar1=(lambda: str(ast.Bar1)), Bar2=(lambda: str(ast.Bar2))))(),
+                    bar_field=(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict(Bar1=(lambda: str(ast.Bar1)), Bar2=(lambda: str(ast.Bar2))))(),
                     baz_field=str(ast.baz_field),
                 )
 

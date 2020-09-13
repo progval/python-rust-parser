@@ -181,7 +181,12 @@ def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str])
         case grammar.Alternation(items):
             # TODO: use an ADT
             members = tuple(
-                node_to_type(item, rule_name_to_type_name) for item in items
+                (
+                    node_to_type(item, rule_name_to_type_name)
+                    if node_to_name(item, None)
+                    else "None"
+                )
+                for item in items
             )
             return f"typing.Union[{', '.join(members)}]"
 
@@ -239,13 +244,9 @@ def node_to_constructor(
 
         case grammar.Alternation(items):
             labeled_items = []
-            for item in items:
-                match item:
-                    case grammar.LabeledNode(label, subtree):
-                        labeled_items.append((label, subtree))
-                    case _:
-                        print(item)
-                        raise NotImplementedError("unlabeled variants of an alternation")
+            for (i, item) in enumerate(items):
+                name = node_to_name(item, f"Variant{i}")
+                labeled_items.append((name, item))
             variants = [
                 (
                     f"{name}=(lambda: "
@@ -256,7 +257,7 @@ def node_to_constructor(
             ]
             # Tatsu puts the name of the variant last in the dict, so we can use that.
             # FIXME: that's unreadable, it needs to be refactored
-            return f"(lambda constructors: constructors[list(set(constructors) & set(ast))[0]])(dict({', '.join(variants)}))()"
+            return f"(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict({', '.join(variants)}))()"
 
         case grammar.Option(item):
             return f"{node_to_constructor(item, var_name, rule_name_to_type_name)} if {var_name} else None"
