@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import enum
+import keyword
 import textwrap
 import typing
 from typing import Dict, Generic, List, Optional, Type, TypeVar
@@ -154,7 +155,7 @@ class Maybe(Generic[T]):
 class SemanticsGenerator:
     def __init__(self):
         self.rule_name_to_type_name: Dict[str, str] = {}
-        self.used_global_names: Set[str] = set()
+        self.used_global_names: Set[str] = set(keyword.kwlist)
         self.generated_global_types: Set[str] = set()
 
     def gen_local_name(self, name):
@@ -344,7 +345,7 @@ class SemanticsGenerator:
 
             case grammar.Concatenation(items):
                 field_names = [
-                    self.node_to_name(item, f"field_{i}")
+                    self.gen_local_name(self.node_to_name(item, f"field_{i}"))
                     for (i, item) in enumerate(items)
                 ]
                 constructors = [
