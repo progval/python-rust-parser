@@ -36,7 +36,7 @@ class ADT(type):
     """A metaclass that makes the attributes listed in the 'variants' attribute
     a subclass of the class."""
     def __new__(cls, name, parents, attributes):
-        variant_names = attributes.pop("_variants")
+        variant_names = attributes["_variants"]
 
         # The class that we are producing
         adt = type(name, parents, attributes)
@@ -243,16 +243,25 @@ def node_to_type_code(
                     class {type_name}(metaclass=rust_parser.gll.semantics.ADT):
                         @classmethod
                         def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> {type_name}:
-                            ((variant_name, subtree),) = ast.items()
+                            (variant_name,) = set(ast) & cls._variants
+                            value = ast.pop(variant_name)
                             cls = getattr(cls, variant_name)
-                            assert issubclass(cls, {type_name})  # sealed
-                            return cls.from_ast(subtree)
+                            assert issubclass(cls, Main)  # sealed
+                            if ast:
+                                # cls is probably a "complex" type, Tatsu wrote
+                                # its fields at the same level of the AST
+                                return cls.from_ast(ast)
+                            else:
+                                # cls is probably a native type, so not a named
+                                # subtree, so the value is not at the same level of
+                                # the AST
+                                return cls.from_ast(value)
 
-                        _variants = ({
+                        _variants = {{{
                             ', '.join(
                                 f'"{variant_name}"' for variant_name in variant_names
                             )
-                        })
+                        }}}
                     """
                 )
             )

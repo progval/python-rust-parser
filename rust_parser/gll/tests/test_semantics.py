@@ -153,12 +153,21 @@ def test_labeled_alternation():
         class Main(metaclass=rust_parser.gll.semantics.ADT):
             @classmethod
             def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
-                ((variant_name, subtree),) = ast.items()
+                (variant_name,) = set(ast) & cls._variants
+                value = ast.pop(variant_name)
                 cls = getattr(cls, variant_name)
                 assert issubclass(cls, Main)  # sealed
-                return cls.from_ast(subtree)
+                if ast:
+                    # cls is probably a "complex" type, Tatsu wrote
+                    # its fields at the same level of the AST
+                    return cls.from_ast(ast)
+                else:
+                    # cls is probably a native type, so not a named
+                    # subtree, so the value is not at the same level of
+                    # the AST
+                    return cls.from_ast(value)
 
-            _variants = ("Foo", "Bar", "Baz")
+            _variants = {"Foo", "Bar", "Baz"}
 
             class Foo(str):
                 @classmethod
@@ -195,5 +204,137 @@ def test_labeled_alternation():
     assert isinstance(g.parse("bar", semantics=semantics), Main.Bar)
     assert g.parse("baz", semantics=semantics) == Main.Baz("baz")
     assert isinstance(g.parse("baz", semantics=semantics), Main.Baz)
+    with pytest.raises(exceptions.FailedParse):
+        g.parse("qux", semantics=semantics)
+
+
+def test_labeled_alternation_labeled_alternation():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Alternation(
+                [
+                    gll_grammar.LabeledNode(
+                        "Foo",
+                        gll_grammar.Concatenation(
+                            [
+                                gll_grammar.LabeledNode(
+                                    "foo1", gll_grammar.StringLiteral("one")
+                                ),
+                                gll_grammar.LabeledNode(
+                                    "foo2", gll_grammar.StringLiteral("two")
+                                ),
+                            ]
+                        ),
+                    ),
+                    gll_grammar.LabeledNode(
+                        "Bar",
+                        gll_grammar.Concatenation(
+                            [
+                                gll_grammar.LabeledNode(
+                                    "bar1", gll_grammar.StringLiteral("two")
+                                ),
+                                gll_grammar.LabeledNode(
+                                    "bar2", gll_grammar.StringLiteral("three")
+                                ),
+                            ]
+                        ),
+                    ),
+                    gll_grammar.LabeledNode(
+                        "Baz",
+                        gll_grammar.Concatenation(
+                            [
+                                gll_grammar.LabeledNode(
+                                    "baz1", gll_grammar.StringLiteral("three")
+                                ),
+                                gll_grammar.LabeledNode(
+                                    "baz2", gll_grammar.StringLiteral("four")
+                                ),
+                            ]
+                        ),
+                    ),
+                ]
+            )
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @typing.sealed
+        class Main(metaclass=rust_parser.gll.semantics.ADT):
+            @classmethod
+            def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
+                (variant_name,) = set(ast) & cls._variants
+                value = ast.pop(variant_name)
+                cls = getattr(cls, variant_name)
+                assert issubclass(cls, Main)  # sealed
+                if ast:
+                    # cls is probably a "complex" type, Tatsu wrote
+                    # its fields at the same level of the AST
+                    return cls.from_ast(ast)
+                else:
+                    # cls is probably a native type, so not a named
+                    # subtree, so the value is not at the same level of
+                    # the AST
+                    return cls.from_ast(value)
+
+            _variants = {"Foo", "Bar", "Baz"}
+
+            @dataclasses.dataclass
+            class Foo:
+                @classmethod
+                def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Foo:
+                    return cls(**ast)
+
+                foo1: str
+                foo2: str
+
+            @dataclasses.dataclass
+            class Bar:
+                @classmethod
+                def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Bar:
+                    return cls(**ast)
+
+                bar1: str
+                bar2: str
+
+            @dataclasses.dataclass
+            class Baz:
+                @classmethod
+                def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Baz:
+                    return cls(**ast)
+
+                baz1: str
+                baz2: str
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert issubclass(Main.Foo, Main)
+
+    assert g.parse("one two", semantics=semantics) == Main.Foo("one", "two")
+    assert isinstance(g.parse("one two", semantics=semantics), Main.Foo)
+    assert g.parse("two three", semantics=semantics) == Main.Bar("two", "three")
+    assert isinstance(g.parse("two three", semantics=semantics), Main.Bar)
+    assert g.parse("three four", semantics=semantics) == Main.Baz("three", "four")
+    assert isinstance(g.parse("three four", semantics=semantics), Main.Baz)
     with pytest.raises(exceptions.FailedParse):
         g.parse("qux", semantics=semantics)
