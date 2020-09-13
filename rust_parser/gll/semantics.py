@@ -116,7 +116,7 @@ class Maybe(Generic[T]):
     """
 
     @classmethod
-    def from_ast(cls, ast):
+    def from_ast(cls, ast) -> Maybe[T]:
         if ast:
             return cls.Just.from_ast(ast)
         else:
@@ -151,45 +151,18 @@ class Maybe(Generic[T]):
         return new_cls
 
 
-class ListNode(List[T], Generic[T]):
-    __cache = {}
-    """See Maybe.__cache"""
-
-    @classmethod
-    def from_ast(cls, ast):
-        return cls(map(cls.__Item.from_ast, ast))
-
-    def __class_getitem__(cls, type_param):
-        return type(f"ListNode[{type_param}]", (cls,), {"_ListNode__Item": type_param})
-
-
-# TODO: ideally, this should be None to be pythonic, but I can't find how to do it :(
-@dataclass
-class NoneTree:
-    @classmethod
-    def from_ast(cls, ast) -> NoneTree:
-        return NoneTree()
-
-
-class StrLeaf(str):
-    @classmethod
-    def from_ast(cls, ast) -> StrLeaf:
-        return cls(ast)
-
-
 def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str]):
     """From a rule's description, return a type representing its AST."""
     match node:
         case grammar.Empty():
-            return "rust_parser.gll.semantics.NoneTree"
+            return "None"
 
         case grammar.LabeledNode(name, item):
-            # TODO: do something with the label?
             return node_to_type(item, rule_name_to_type_name)
 
         case grammar.StringLiteral(string):
             # TODO: NewType?
-            return "rust_parser.gll.semantics.StrLeaf"
+            return "str"
 
         case grammar.CharacterRange(from_char, to_char):
             raise NotImplementedError("character ranges")
@@ -203,34 +176,101 @@ def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str])
             members = tuple(
                 node_to_type(item, rule_name_to_type_name) for item in items
             )
-            return str(typing.Tuple[members])
+            return f"typing.Tuple[{', '.join(members)}]"
 
         case grammar.Alternation(items):
-            raise NotImplementedError("Alternation nested in rule")  # TODO
+            # TODO: use an ADT
+            members = tuple(
+                node_to_type(item, rule_name_to_type_name) for item in items
+            )
+            return f"typing.Union[{', '.join(members)}]"
 
         case grammar.Option(item):
             return f"rust_parser.gll.semantics.Maybe[{node_to_type(item, rule_name_to_type_name)}]"
 
         case grammar.Repeated(positive, item, separator, allow_trailing):
-            return f"rust_parser.gll.semantics.ListNode[{node_to_type(item, rule_name_to_type_name)}]"
+            return f"typing.List[{node_to_type(item, rule_name_to_type_name)}]"
 
         case _:
             # should be unreachable
             assert False, node
 
 
-def _node_to_field_code(
+def node_to_name(
     node: grammar.RuleNode,
     default_name: str,
-    rule_name_to_type_name: Dict[str, str],
-) -> (str, str):
-    """Returns the source code to describe this node as a field in a dataclass."""
+) -> (str, (str, str)):
     match node:
         case grammar.LabeledNode(name, item):
-            return (name, node_to_type(item, rule_name_to_type_name))
+            return name
 
         case _:
-            return (default_name, node_to_type(node, rule_name_to_type_name))
+            return default_name
+
+
+def node_to_constructor(
+    node: grammar.RuleNode, var_name: str, rule_name_to_type_name: Dict[str, str]
+) -> str:
+    """From a rule's description, return an expression to build it from a Tatsu AST."""
+    match node:
+        case grammar.Empty():
+            return "None"
+
+        case grammar.LabeledNode(_, item):
+            return node_to_constructor(item, var_name, rule_name_to_type_name)
+
+        case grammar.StringLiteral(string):
+            # TODO: NewType?
+            return f"str({var_name})"  # we could get rid of the str() call * shrug *
+
+        case grammar.CharacterRange(from_char, to_char):
+            raise NotImplementedError("character ranges")
+
+        case grammar.SymbolName(rule_name):
+            # alias of an other rule
+            return f"{rule_name_to_type_name[rule_name]}.from_ast(var_name)"
+
+        case grammar.Concatenation(items):
+            # TODO: use namedtuple if they have names
+            members = tuple(
+                node_to_type(item, rule_name_to_type_name) for item in items
+            )
+            return f"tuple(ast.values())"
+
+        case grammar.Alternation(items):
+            labeled_items = []
+            for item in items:
+                match item:
+                    case grammar.LabeledNode(label, subtree):
+                        labeled_items.append((label, subtree))
+                    case _:
+                        print(item)
+                        raise NotImplementedError("unlabeled variants of an alternation")
+            variants = [
+                (
+                    f"{name}=(lambda: "
+                    + node_to_constructor(item, f"ast.{name}", rule_name_to_type_name)
+                    + ")"
+                )
+                for (name, item) in labeled_items
+            ]
+            # Tatsu puts the name of the variant last in the dict, so we can use that.
+            # FIXME: that's unreadable, it needs to be refactored
+            return f"(lambda constructors: constructors[list(set(constructors) & set(ast))[0]])(dict({', '.join(variants)}))()"
+
+        case grammar.Option(item):
+            return f"{node_to_constructor(item, var_name, rule_name_to_type_name)} if {var_name} else None"
+
+        case grammar.Repeated(positive, item, separator, allow_trailing):
+            iter_var_name = var_name.split(".")[-1] + "_item"
+            return (
+                f"[{node_to_constructor(item, f'{iter_var_name}', rule_name_to_type_name)} "
+                f"for {iter_var_name} in {var_name}]"
+            )
+
+        case _:
+            # should be unreachable
+            assert False, node
 
 
 def node_to_type_code(
@@ -282,15 +322,23 @@ def node_to_type_code(
             )
 
         case grammar.Concatenation(items):
-            field_names_and_types = [
-                _node_to_field_code(item, f"field_{i}", rule_name_to_type_name)
+            field_names = [
+                node_to_name(item, f"field_{i}")
                 for (i, item) in enumerate(items)
+            ]
+            constructors = [
+                node_to_constructor(item, f"ast.{name}", rule_name_to_type_name)
+                for (name, item) in zip(field_names, items)
+            ]
+            field_types = [
+                node_to_type(item, name)
+                for (name, item) in zip(field_names, items)
             ]
 
             args = "".join(
                 f'''
-                                {name}={type_}.from_ast(ast.{name}),'''
-                for (i, (name, type_)) in enumerate(field_names_and_types)
+                                {name}={constructor},'''
+                for (name, constructor) in zip(field_names, constructors)
             )
 
             lines = [
@@ -307,7 +355,7 @@ def node_to_type_code(
             ]
             lines.extend(
                 f"    {name}: {type_}"
-                for (name, type_) in field_names_and_types
+                for (name, type_) in zip(field_names, field_types)
             )
             lines.append("")
             return "\n".join(lines)
