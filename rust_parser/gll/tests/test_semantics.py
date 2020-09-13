@@ -151,22 +151,6 @@ def test_labeled_alternation():
 
         @typing.sealed
         class Main(metaclass=rust_parser.gll.semantics.ADT):
-            @classmethod
-            def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
-                (variant_name,) = set(ast) & cls._variants
-                value = ast.pop(variant_name)
-                cls = getattr(cls, variant_name)
-                assert issubclass(cls, Main)  # sealed
-                if ast:
-                    # cls is probably a "complex" type, Tatsu wrote
-                    # its fields at the same level of the AST
-                    return cls.from_ast(ast)
-                else:
-                    # cls is probably a native type, so not a named
-                    # subtree, so the value is not at the same level of
-                    # the AST
-                    return cls.from_ast(value)
-
             _variants = {"Foo", "Bar", "Baz"}
 
             class Foo(str):
@@ -271,22 +255,6 @@ def test_labeled_alternation_labeled_alternation():
 
         @typing.sealed
         class Main(metaclass=rust_parser.gll.semantics.ADT):
-            @classmethod
-            def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> Main:
-                (variant_name,) = set(ast) & cls._variants
-                value = ast.pop(variant_name)
-                cls = getattr(cls, variant_name)
-                assert issubclass(cls, Main)  # sealed
-                if ast:
-                    # cls is probably a "complex" type, Tatsu wrote
-                    # its fields at the same level of the AST
-                    return cls.from_ast(ast)
-                else:
-                    # cls is probably a native type, so not a named
-                    # subtree, so the value is not at the same level of
-                    # the AST
-                    return cls.from_ast(value)
-
             _variants = {"Foo", "Bar", "Baz"}
 
             @dataclasses.dataclass

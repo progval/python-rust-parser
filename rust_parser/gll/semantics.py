@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import enum
 import textwrap
 import typing
-from typing import Dict, Optional
+from typing import Dict, Optional, Type, TypeVar
 
 from tatsu.util import safe_name
 
@@ -32,6 +32,25 @@ _IMPORTS = ["dataclasses", "typing"]
 """Modules imported by the generated source code."""
 
 
+T = TypeVar("T", bound="ADT")
+
+
+def _adt_from_ast(cls: Type[T], ast: typing.Dict[str, typing.Any]) -> T:
+    (variant_name,) = set(ast) & cls._variants
+    value = ast.pop(variant_name)
+    variant_class = getattr(cls, variant_name)
+    assert issubclass(variant_class, cls)  # sealed
+    if ast:
+        # cls is probably a "complex" type, Tatsu wrote
+        # its fields at the same level of the AST
+        return variant_class.from_ast(ast)
+    else:
+        # cls is probably a native type, so not a named
+        # subtree, so the value is not at the same level of
+        # the AST
+        return variant_class.from_ast(value)
+
+
 class ADT(type):
     """A metaclass that makes the attributes listed in the 'variants' attribute
     a subclass of the class."""
@@ -39,6 +58,7 @@ class ADT(type):
         variant_names = attributes["_variants"]
 
         # The class that we are producing
+        attributes["from_ast"] = classmethod(_adt_from_ast)
         adt = type(name, parents, attributes)
 
         for variant_name in variant_names:
@@ -75,7 +95,6 @@ class ADT(type):
             setattr(adt, variant_name, variant)
 
         return adt
-
 
 def str_type(type_: type) -> str:
     """
@@ -241,22 +260,6 @@ def node_to_type_code(
                     f"""\
                     @typing.sealed
                     class {type_name}(metaclass=rust_parser.gll.semantics.ADT):
-                        @classmethod
-                        def from_ast(cls, ast: typing.Dict[str, typing.Any]) -> {type_name}:
-                            (variant_name,) = set(ast) & cls._variants
-                            value = ast.pop(variant_name)
-                            cls = getattr(cls, variant_name)
-                            assert issubclass(cls, Main)  # sealed
-                            if ast:
-                                # cls is probably a "complex" type, Tatsu wrote
-                                # its fields at the same level of the AST
-                                return cls.from_ast(ast)
-                            else:
-                                # cls is probably a native type, so not a named
-                                # subtree, so the value is not at the same level of
-                                # the AST
-                                return cls.from_ast(value)
-
                         _variants = {{{
                             ', '.join(
                                 f'"{variant_name}"' for variant_name in variant_names
