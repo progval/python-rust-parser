@@ -187,6 +187,8 @@ def test_labeled_alternation():
     semantics = namespace["Semantics"]()
     Main = namespace["Main"]
 
+    assert issubclass(Main.Foo, Main)
+
     assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
     assert isinstance(g.parse("foo", semantics=semantics), Main.Foo)
     assert g.parse("bar", semantics=semantics) == Main.Bar("bar")
