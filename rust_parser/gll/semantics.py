@@ -38,9 +38,9 @@ T = TypeVar("T", bound="ADT")
 
 
 def _adt_from_ast(cls: Type[T], ast: typing.Dict[str, typing.Any]) -> T:
-    (variant_name,) = set(ast) & cls._variants
+    (variant_name,) = set(ast) & set(cls._variants)
     value = ast.pop(variant_name)
-    variant_class = getattr(cls, variant_name)
+    variant_class = getattr(cls, cls._variants[variant_name])
     assert issubclass(variant_class, cls)  # sealed
     if ast:
         # cls is probably a "complex" type, Tatsu wrote
@@ -63,9 +63,9 @@ class ADT(type):
         attributes["from_ast"] = classmethod(_adt_from_ast)
         adt = type(name, parents, attributes)
 
-        for variant_name in variant_names:
+        for (variant_name, variant_type_name) in variant_names.items():
             # get the class defined inside this one.
-            variant_source = attributes[variant_name]
+            variant_source = attributes[variant_type_name]
 
             # It has only parents that inherit only 'object' directly because
             # we defined it that way. Get these parents.
@@ -90,11 +90,11 @@ class ADT(type):
             # Create a similar class, which inherits the adt in addition to its
             # original parents
             variant = type(
-                variant_name, (*variant_parents, adt), variant_attributes,
+                variant_type_name, (*variant_parents, adt), variant_attributes,
             )
 
             # Replace the old one with the one we just created
-            setattr(adt, variant_name, variant)
+            setattr(adt, variant_type_name, variant)
 
         return adt
 
@@ -151,312 +151,349 @@ class Maybe(Generic[T]):
         return new_cls
 
 
-def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str]):
-    """From a rule's description, return a type representing its AST."""
-    match node:
-        case grammar.Empty():
-            return "None"
+class SemanticsGenerator:
+    def __init__(self):
+        self.rule_name_to_type_name: Dict[str, str] = {}
+        self.used_global_names: Set[str] = set()
+        self.generated_global_types: Set[str] = set()
 
-        case grammar.LabeledNode(name, item):
-            return node_to_type(item, rule_name_to_type_name)
+    def gen_local_name(self, name):
+        while name in self.used_global_names:
+            name += "_"
+        return name
 
-        case grammar.StringLiteral(string):
-            # TODO: NewType?
-            return "str"
+    def node_to_type(self, node: grammar.RuleNode):
+        """From a rule's description, return a type representing its AST."""
+        match node:
+            case grammar.Empty():
+                return "None"
 
-        case grammar.CharacterRange(from_char, to_char):
-            raise NotImplementedError("character ranges")
+            case grammar.LabeledNode(name, item):
+                return self.node_to_type(item)
 
-        case grammar.SymbolName(name):
-            # alias of an other rule
-            return rule_name_to_type_name[name]
+            case grammar.StringLiteral(string):
+                # TODO: NewType?
+                return "str"
 
-        case grammar.Concatenation(items):
-            # TODO: use namedtuple if they have names
-            members = tuple(
-                node_to_type(item, rule_name_to_type_name) for item in items
-            )
-            return f"typing.Tuple[{', '.join(members)}]"
+            case grammar.CharacterRange(from_char, to_char):
+                raise NotImplementedError("character ranges")
 
-        case grammar.Alternation(items):
-            # TODO: use an ADT
-            members = tuple(
-                (
-                    node_to_type(item, rule_name_to_type_name)
-                    if node_to_name(item, None)
-                    else "None"
+            case grammar.SymbolName(name):
+                # alias of an other rule
+                return self.rule_name_to_type_name[name]
+
+            case grammar.Concatenation(items):
+                # TODO: use namedtuple if they have names
+                members = tuple(
+                    self.node_to_type(item) for item in items
                 )
-                for item in items
-            )
-            return f"typing.Union[{', '.join(members)}]"
+                return f"typing.Tuple[{', '.join(members)}]"
 
-        case grammar.Option(item):
-            return f"rust_parser.gll.semantics.Maybe[{node_to_type(item, rule_name_to_type_name)}]"
-
-        case grammar.Repeated(positive, item, separator, allow_trailing):
-            return f"typing.List[{node_to_type(item, rule_name_to_type_name)}]"
-
-        case _:
-            # should be unreachable
-            assert False, node
-
-
-def node_to_name(
-    node: grammar.RuleNode,
-    default_name: str,
-) -> (str, (str, str)):
-    match node:
-        case grammar.LabeledNode(name, item):
-            return name
-
-        case _:
-            return default_name
-
-
-def node_to_constructor(
-    node: grammar.RuleNode, var_name: str, rule_name_to_type_name: Dict[str, str]
-) -> str:
-    """From a rule's description, return an expression to build it from a Tatsu AST."""
-    match node:
-        case grammar.Empty():
-            return "None"
-
-        case grammar.LabeledNode(_, item):
-            return node_to_constructor(item, var_name, rule_name_to_type_name)
-
-        case grammar.StringLiteral(string):
-            # TODO: NewType?
-            return f"str({var_name})"  # we could get rid of the str() call * shrug *
-
-        case grammar.CharacterRange(from_char, to_char):
-            raise NotImplementedError("character ranges")
-
-        case grammar.SymbolName(rule_name):
-            # alias of an other rule
-            return f"{rule_name_to_type_name[rule_name]}.from_ast({var_name})"
-
-        case grammar.Concatenation(items):
-            # TODO: use namedtuple if they have names
-            members = tuple(
-                node_to_type(item, rule_name_to_type_name) for item in items
-            )
-            return f"tuple(ast.values())"
-
-        case grammar.Alternation(items):
-            labeled_items = []
-            for (i, item) in enumerate(items):
-                name = node_to_name(item, f"Variant{i}")
-                labeled_items.append((name, item))
-            variants = [
-                (
-                    f"{name}=(lambda: "
-                    + node_to_constructor(item, f"ast.{name}", rule_name_to_type_name)
-                    + ")"
+            case grammar.Alternation(items):
+                # TODO: use an ADT
+                members = tuple(
+                    (
+                        self.node_to_type(item)
+                        if self.node_to_name(item, None)
+                        else "None"
+                    )
+                    for item in items
                 )
-                for (name, item) in labeled_items
-            ]
-            # Tatsu puts the name of the variant last in the dict, so we can use that.
-            # FIXME: that's unreadable, it needs to be refactored
-            return f"(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict({', '.join(variants)}))()"
+                return f"typing.Union[{', '.join(members)}]"
 
-        case grammar.Option(item):
-            return f"{node_to_constructor(item, var_name, rule_name_to_type_name)} if {var_name} else None"
+            case grammar.Option(item):
+                return f"rust_parser.gll.semantics.Maybe[{self.node_to_type(item)}]"
 
-        case grammar.Repeated(positive, item, separator, allow_trailing):
-            iter_var_name = var_name.split(".")[-1] + "_item"
-            return (
-                f"[{node_to_constructor(item, f'{iter_var_name}', rule_name_to_type_name)} "
-                f"for {iter_var_name} in {var_name}]"
-            )
+            case grammar.Repeated(positive, item, separator, allow_trailing):
+                return f"typing.List[{self.node_to_type(item)}]"
 
-        case _:
-            # should be unreachable
-            assert False, node
+            case _:
+                # should be unreachable
+                assert False, node
 
+    def node_to_name(
+        self, node: grammar.RuleNode, default_name: str,
+    ) -> (str, (str, str)):
+        match node:
+            case grammar.LabeledNode(name, item):
+                return name
 
-def node_to_type_code(
-    type_name: str,
-    node: grammar.RuleNode,
-    rule_name_to_type_name: Dict[str, str],
-) -> str:
-    """From a node description, return the source code of a class
-    representing its AST."""
+            case _:
+                return default_name
 
-    match node:
-        case grammar.Empty():
-            return textwrap.dedent(
-                f"""
-                class {type_name}:
-                    pass
-                """
-            )
+    def node_to_constructor(self, node: grammar.RuleNode, var_name: str) -> str:
+        """From a rule's description, return an expression to build it from a Tatsu AST."""
+        match node:
+            case grammar.Empty():
+                return "None"
 
-        case grammar.LabeledNode(name, item):
-            # TODO: if the type_name was auto-generated, use the label instead
-            return node_to_type_code(
-                type_name, item, rule_name_to_type_name,
-            )
+            case grammar.LabeledNode(_, item):
+                return self.node_to_constructor(item, var_name)
 
-        case grammar.StringLiteral(string):
-            return textwrap.dedent(
-                f"""\
-                class {type_name}(str):
-                    @classmethod
-                    def from_ast(cls, ast: str) -> {type_name}:
-                        return cls(ast)
-                """
-            )
+            case grammar.StringLiteral(string):
+                # TODO: NewType?
+                return f"str({var_name})"  # we could get rid of the str() call * shrug *
 
-        case grammar.CharacterRange(from_char, to_char):
-            raise NotImplementedError("character ranges")
+            case grammar.CharacterRange(from_char, to_char):
+                raise NotImplementedError("character ranges")
 
-        case grammar.SymbolName(name):
-            # alias of an other rule
-            target_name = rule_name_to_type_name[name]
-            return textwrap.dedent(
-                f"""\
-                class {type_name}({target_name}):
-                    @classmethod
-                    def from_ast(cls, ast: str) -> {type_name}:
-                        return cls(ast)
-                """
-            )
+            case grammar.SymbolName(rule_name):
+                # alias of an other rule
+                return f"{self.rule_name_to_type_name[rule_name]}.from_ast({var_name})"
 
-        case grammar.Concatenation(items):
-            field_names = [
-                node_to_name(item, f"field_{i}")
-                for (i, item) in enumerate(items)
-            ]
-            constructors = [
-                node_to_constructor(item, f"ast.{name}", rule_name_to_type_name)
-                for (name, item) in zip(field_names, items)
-            ]
-            field_types = [
-                node_to_type(item, rule_name_to_type_name)
-                for (name, item) in zip(field_names, items)
-            ]
+            case grammar.Concatenation(items):
+                # TODO: use namedtuple if they have names
+                members = tuple(
+                    self.node_to_type(item) for item in items
+                )
+                return f"tuple(ast.values())"
 
-            args = "".join(
-                f'''
-                                {name}={constructor},'''
-                for (name, constructor) in zip(field_names, constructors)
-            )
+            case grammar.Alternation(items):
+                labeled_items = []
+                for (i, item) in enumerate(items):
+                    name = self.node_to_name(item, f"Variant{i}")
+                    labeled_items.append((name, item))
+                variants = [
+                    (
+                        f"{name}=(lambda: "
+                        + self.node_to_constructor(item, f"ast.{name}")
+                        + ")"
+                    )
+                    for (name, item) in labeled_items
+                ]
+                # Tatsu puts the name of the variant last in the dict, so we can use that.
+                # FIXME: that's unreadable, it needs to be refactored
+                return f"(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict({', '.join(variants)}))()"
 
-            lines = [
-                textwrap.dedent(
-                    f"""\
-                    @dataclasses.dataclass
+            case grammar.Option(item):
+                return f"{self.node_to_constructor(item, var_name)} if {var_name} else None"
+
+            case grammar.Repeated(positive, item, separator, allow_trailing):
+                iter_var_name = var_name.split(".")[-1] + "_item"
+                return (
+                    f"[{self.node_to_constructor(item, f'{iter_var_name}')} "
+                    f"for {iter_var_name} in {var_name}]"
+                )
+
+            case _:
+                # should be unreachable
+                assert False, node
+
+    def node_to_type_code(self, type_name: str, node: grammar.RuleNode) -> str:
+        """From a node description, return the source code of a class
+        representing its AST."""
+
+        match node:
+            case grammar.Empty():
+                return textwrap.dedent(
+                    f"""
                     class {type_name}:
-                        @classmethod
-                        def from_ast(cls, ast) -> {type_name}:
-                            return cls({args}
-                            )
+                        pass
                     """
                 )
-            ]
-            lines.extend(
-                f"    {name}: {type_}"
-                for (name, type_) in zip(field_names, field_types)
-            )
-            lines.append("")
-            return "\n".join(lines)
 
-        case grammar.Alternation(items):
-            # Ideally, we would use algebraic data types here.
-            # Bad news: Python doesn't have ADTs.
-            # Good news: PEP 622 is close enough, so we'll use that.
-            blocks = []
-            variant_names = []
-            for (i, item) in enumerate(items):
-                match item:
-                    case grammar.LabeledNode(name, item):
-                        # We're in luck! We have a human-supplied name for this variant
-                        # TODO: make sure it's unique
-                        block = node_to_type_code(
-                            name, item, rule_name_to_type_name,
-                        )
+            case grammar.LabeledNode(name, item):
+                # TODO: if the type_name was auto-generated, use the label instead
+                return self.node_to_type_code(
+                    type_name, item,
+                )
 
-                    case _:
-                        # else, generate a name.
-                        # TODO: make sure it's unique
-                        name = f"{type_name}_{i}"
-                        block = node_to_type_code(
-                            name, item, rule_name_to_type_name,
-                        )
-
-                variant_names.append(name)
-                blocks.append(textwrap.indent(block, "    "))
-
-            blocks.insert(
-                0,
-                textwrap.dedent(
+            case grammar.StringLiteral(string):
+                return textwrap.dedent(
                     f"""\
-                    @typing.sealed
-                    class {type_name}(metaclass=rust_parser.gll.semantics.ADT):
-                        _variants = {{{
-                            ', '.join(
-                                f'"{variant_name}"' for variant_name in variant_names
-                            )
-                        }}}
+                    class {type_name}(str):
+                        @classmethod
+                        def from_ast(cls, ast: str) -> {type_name}:
+                            return cls(ast)
                     """
                 )
+
+            case grammar.CharacterRange(from_char, to_char):
+                raise NotImplementedError("character ranges")
+
+            case grammar.SymbolName(name):
+                # alias of an other rule
+                target_name = self.rule_name_to_type_name[name]
+                # TODO: try to automatically reorder rule definition to
+                # minimize the first case
+
+                if target_name in self.generated_global_types:
+                    # the target is defined before this, we can inherit it.
+                    return textwrap.dedent(
+                        f"""\
+                        class {type_name}({target_name}):
+                            @classmethod
+                            def from_ast(cls, ast) -> {type_name}:
+                                return cls(ast)
+                        """
+                    )
+                else:
+                    # the target will be defined later in the file, we can't
+                    # inherit it
+                    return textwrap.dedent(
+                        f"""\
+                        @dataclasses.dataclass
+                        class {type_name}:
+                            inner: {target_name}
+
+                            @classmethod
+                            def from_ast(cls, ast) -> {type_name}:
+                                return cls(inner={target_name}.from_ast(ast))
+                        """
+                    )
+
+            case grammar.Concatenation(items):
+                field_names = [
+                    self.node_to_name(item, f"field_{i}")
+                    for (i, item) in enumerate(items)
+                ]
+                constructors = [
+                    self.node_to_constructor(item, f"ast.{name}")
+                    for (name, item) in zip(field_names, items)
+                ]
+                field_types = [
+                    self.node_to_type(item)
+                    for (name, item) in zip(field_names, items)
+                ]
+
+                args = "".join(
+                    f'''
+                                    {name}={constructor},'''
+                    for (name, constructor) in zip(field_names, constructors)
+                )
+
+                lines = [
+                    textwrap.dedent(
+                        f"""\
+                        @dataclasses.dataclass
+                        class {type_name}:
+                            @classmethod
+                            def from_ast(cls, ast) -> {type_name}:
+                                return cls({args}
+                                )
+                        """
+                    )
+                ]
+                lines.extend(
+                    f"    {name}: {type_}"
+                    for (name, type_) in zip(field_names, field_types)
+                )
+                lines.append("")
+                return "\n".join(lines)
+
+            case grammar.Alternation(items):
+                # Ideally, we would use algebraic data types here.
+                # Bad news: Python doesn't have ADTs.
+                # Good news: PEP 622 is close enough, so we'll use that.
+                blocks = []
+                variant_names = []
+                for (i, item) in enumerate(items):
+                    match item:
+                        case grammar.LabeledNode(name, item):
+                            # We're in luck! We have a human-supplied name for this variant
+                            # TODO: make sure it's unique
+                            block = self.node_to_type_code(
+                                self.gen_local_name(name), item,
+                            )
+
+                        case _:
+                            # else, generate a name.
+                            # TODO: make sure it's unique
+                            name = f"{type_name}_{i}"
+                            block = self.node_to_type_code(
+                                self.gen_local_name(name), item,
+                            )
+
+                    variant_names.append(name)
+                    blocks.append(textwrap.indent(block, "    "))
+
+                blocks.insert(
+                    0,
+                    textwrap.dedent(
+                        f"""\
+                        @typing.sealed
+                        class {type_name}(metaclass=rust_parser.gll.semantics.ADT):
+                            _variants = {{{
+                                ', '.join(
+                                    f'"{variant_name}": "{self.gen_local_name(variant_name)}"'
+                                    for variant_name in variant_names
+                                )
+                            }}}
+                        """
+                    )
+                )
+
+                return "\n".join(blocks)
+
+            case grammar.Option(item):
+                # TODO: better name
+                inner_name = self.gen_local_name(f"{type_name}Inner")
+                blocks = [
+                    self.node_to_type_code(inner_name, item),
+                    f"{type_name} = rust_parser.gll.semantics.Maybe[{inner_name}]\n",
+                ]
+                return "\n\n".join(blocks)
+
+            case grammar.Repeated(positive, item, separator, allow_trailing):
+                # TODO: better name
+                inner_name = self.gen_local_name(f"{type_name}Inner")
+                blocks = [
+                    self.node_to_type_code(inner_name, item),
+                    textwrap.dedent(
+                        f"""\
+                        class {type_name}(typing.List[{inner_name}]):
+                            @classmethod
+                            def from_ast(cls, ast) -> {type_name}:
+                                return cls(map(cls.{inner_name}.from_ast, ast))
+                        """
+                    )
+                ]
+                return "\n".join(blocks)
+
+            case _:
+                # should be unreachable
+                assert False, node
+
+    def grammar_to_semantics_code(self, grammar: grammar.Grammar) -> str:
+        lines = ["class Semantics:"]
+        for rule_name in grammar.rules:
+            type_name = self.rule_name_to_type_name[rule_name]
+            lines.append(
+                f"    def {safe_name(rule_name)}(self, ast) -> {type_name}:"
             )
 
-            return "\n".join(blocks)
+            lines.append(f"        return {type_name}.from_ast(ast)")
+            lines.append("")
 
-        case grammar.Option(item):
-            # TODO: better name
-            name = f"{type_name}Inner"
-            blocks = [
-                node_to_type_code(name, item, rule_name_to_type_name),
-                f"{type_name} = rust_parser.gll.semantics.Maybe[{name}]\n",
-            ]
-            return "\n\n".join(blocks)
+        return "\n".join(lines)
 
-        case grammar.Repeated(positive, item, separator, allow_trailing):
-            # now I can see a use for that, but I'm just lazy, let's do it later
-            raise NotImplementedError("Entire rule is repeated.")
+    def generate(self, grammar: grammar.Grammar) -> str:
+        """entry point of this class"""
+        for rule_name in grammar.rules:
+            # TODO: escape keywords, special chars, etc.
+            type_name = safe_name(rule_name)
+            assert type_name not in self.used_global_names
+            self.rule_name_to_type_name[rule_name] = type_name
+            self.used_global_names.add(type_name)
 
-        case _:
-            # should be unreachable
-            assert False, node
+        blocks = []
+        for (rule_name, rule) in grammar.rules.items():
+            code = self.node_to_type_code(rule_name, rule)
+            self.generated_global_types.add(self.rule_name_to_type_name[rule_name])
+            blocks.append(code)
 
+        blocks.append(self.grammar_to_semantics_code(grammar))
 
-def grammar_to_semantics_code(
-    grammar: grammar.Grammar,
-    rule_name_to_type_name: Dict[str, str],
-) -> str:
-    lines = ["class Semantics:"]
-    for rule_name in grammar.rules:
-        type_name = rule_name_to_type_name[rule_name]
-        lines.append(
-            f"    def {safe_name(rule_name)}(self, ast) -> {type_name}:"
-        )
-
-        lines.append(f"        return {type_name}.from_ast(ast)")
-        lines.append("")
-
-    return "\n".join(lines)
+        return "\n\n".join(blocks)
 
 
 def generate_semantics_code(grammar: grammar.Grammar) -> str:
-    rule_name_to_type_name = {}
-    for rule_name in grammar.rules:
-        # TODO: escape keywords, special chars, etc.
-        rule_name_to_type_name[rule_name] = safe_name(rule_name)
-
     blocks = [
         "from __future__ import annotations",
         "\n".join(f"import {name}" for name in _IMPORTS),
         "import rust_parser.gll.semantics\n",
+        SemanticsGenerator().generate(grammar),
     ]
 
-    for (rule_name, rule) in grammar.rules.items():
-        code = node_to_type_code(rule_name, rule, rule_name_to_type_name)
-        blocks.append(code)
-
-    blocks.append(
-        grammar_to_semantics_code(grammar, rule_name_to_type_name)
-    )
 
     return "\n\n".join(blocks)
