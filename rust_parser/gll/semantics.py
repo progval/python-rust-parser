@@ -199,7 +199,7 @@ def node_to_type(node: grammar.RuleNode, rule_name_to_type_name: Dict[str, str])
         case grammar.Repeated(positive, item, separator, allow_trailing):
             return typing.List[node_to_type(item, rule_name_to_type_name)]
 
-        case grammar._:
+        case _:
             # should be unreachable
             assert False, node
 
@@ -215,7 +215,7 @@ def _node_to_field_code(
             type_ = node_to_type(item, rule_name_to_type_name)
             return f"{name}: {str_type(type_)}"
 
-        case grammar._:
+        case _:
             type_ = node_to_type(node, rule_name_to_type_name)
             return f"{default_name}: {str_type(type_)}"
 
@@ -338,7 +338,7 @@ def node_to_type_code(
             # now I can see a use for that, but I'm just lazy, let's do it later
             raise NotImplementedError("Entire rule is repeated.")
 
-        case grammar._:
+        case _:
             # should be unreachable
             assert False, node
 
