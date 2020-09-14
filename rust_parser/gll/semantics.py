@@ -424,7 +424,7 @@ class SemanticsGenerator:
                     )
                 )
 
-                return "\n".join(blocks)
+                return "\n".join(blocks).replace("\n\n\n", "\n\n")
 
             case grammar.Option(item):
                 # TODO: better name
