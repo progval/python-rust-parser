@@ -202,6 +202,9 @@ class SemanticsGenerator:
                 )
                 return f"typing.Union[{', '.join(members)}]"
 
+            case grammar.Option(grammar.Empty()):
+                return "bool"
+
             case grammar.Option(item):
                 return f"typing.Optional[{self.node_to_type(item)}]"
 
@@ -265,6 +268,9 @@ class SemanticsGenerator:
                 # Tatsu puts the name of the variant last in the dict, so we can use that.
                 # FIXME: that's unreadable, it needs to be refactored
                 return f"(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict({', '.join(variants)}))()"
+
+            case grammar.Option(grammar.Empty()):
+                return f"bool({var_name})"
 
             case grammar.Option(item):
                 return f"{self.node_to_constructor(item, var_name)} if {var_name} else None"

@@ -75,14 +75,22 @@ def test_labeled_concatenation():
                         gll_grammar.Option(gll_grammar.StringLiteral("bar")),
                     ),
                     gll_grammar.LabeledNode(
-                        "baz_field", gll_grammar.StringLiteral("baz")
+                        "baz_field",
+                        gll_grammar.Option(gll_grammar.StringLiteral("baz")),
                     ),
                 ]
             )
         }
     )
-    sc = generate_semantics_code(grammar)
     g = generate_tatsu_grammar(grammar)
+
+    # we need a different grammar for generate_semantics_code to trigger the
+    # boolean case
+    grammar.rules["Main"].items[2] = gll_grammar.LabeledNode(
+        "baz_field", gll_grammar.Option(gll_grammar.Empty())
+    )
+
+    sc = generate_semantics_code(grammar)
 
     assert sc == textwrap.dedent(
         """\
@@ -101,12 +109,12 @@ def test_labeled_concatenation():
                 return cls(
                     foo_field=str(ast.foo_field),
                     bar_field=str(ast.bar_field) if ast.bar_field else None,
-                    baz_field=str(ast.baz_field),
+                    baz_field=bool(ast.baz_field),
                 )
 
             foo_field: str
             bar_field: typing.Optional[str]
-            baz_field: str
+            baz_field: bool
 
 
         class Semantics:
@@ -120,10 +128,10 @@ def test_labeled_concatenation():
     semantics = namespace["Semantics"]()
     Main = namespace["Main"]
 
-    assert g.parse("foo bar baz", semantics=semantics) == Main("foo", "bar", "baz")
-    assert g.parse("foo baz", semantics=semantics) == Main("foo", None, "baz")
-    with pytest.raises(exceptions.FailedToken):
-        g.parse("foo", semantics=semantics)
+    assert g.parse("foo bar baz", semantics=semantics) == Main("foo", "bar", True)
+    assert g.parse("foo baz", semantics=semantics) == Main("foo", None, True)
+    assert g.parse("foo bar", semantics=semantics) == Main("foo", "bar", False)
+    assert g.parse("foo", semantics=semantics) == Main("foo", None, False)
     with pytest.raises(exceptions.FailedToken):
         g.parse("bar", semantics=semantics)
 
