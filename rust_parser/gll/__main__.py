@@ -25,6 +25,7 @@ from .tokens import tokenize_gll
 from .grammar import parse_gll
 from .generate import generate_tatsu_grammar
 from .semantics import generate_semantics_code
+from .simplification import simplify_grammar
 
 
 def read_input_file(filename: str) -> str:
@@ -72,7 +73,9 @@ def main():
     tatsu_grammar = generate_tatsu_grammar(gll_grammar)
     with open(output_parser_filename, "wb") as fd:
         pickle.dump(tatsu_grammar, fd)
-    write_output_file(output_ast_filename, generate_semantics_code(gll_grammar))
+    write_output_file(
+        output_ast_filename, generate_semantics_code(simplify_grammar(gll_grammar))
+    )
 
 
 main()

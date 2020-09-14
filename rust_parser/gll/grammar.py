@@ -18,10 +18,12 @@
 """Represents a grammar defined in GLL's language, and parses such grammar.
 But does not generate a parser from this grammar."""
 
+from __future__ import annotations
 
+import abc
 from dataclasses import dataclass
 import enum
-from typing import sealed, Dict, Iterable, List, Optional
+from typing import sealed, Callable, Dict, Iterable, List, Optional, TypeVar
 
 from . import tokens
 
@@ -30,9 +32,14 @@ class GllParseError(Exception):
     pass
 
 
+T = TypeVar("T", bound="RuleNode")
+TVisitor = Callable[["RuleNode"], "RuleNode"]
+
+
 @sealed
-class RuleNode:
-    pass
+class RuleNode(abc.ABC):
+    def visit(self: T, f: TVisitor) -> T:
+        return self
 
 
 @dataclass
@@ -44,6 +51,9 @@ class Empty(RuleNode):
 class LabeledNode(RuleNode):
     name: str
     item: RuleNode
+
+    def visit(self, f: TVisitor) -> LabeledNode:
+        return LabeledNode(self.name, f(self.item))
 
 
 @dataclass
@@ -66,10 +76,16 @@ class SymbolName(RuleNode):
 class Concatenation(RuleNode):
     items: List[RuleNode]
 
+    def visit(self, f: TVisitor) -> Concatenation:
+        return Concatenation(list(map(f, self.items)))
+
 
 @dataclass
 class Alternation(RuleNode):
     items: List[RuleNode]
+
+    def visit(self, f: TVisitor) -> Alternation:
+        return Alternation(list(map(f, self.items)))
 
 
 @dataclass
@@ -77,6 +93,9 @@ class Option(RuleNode):
     """aka. 'optional' in GLL"""
 
     item: RuleNode
+
+    def visit(self, f: TVisitor) -> Option:
+        return Option(f(self.item))
 
 
 @dataclass
@@ -88,6 +107,9 @@ class Repeated(RuleNode):
     separator: Optional[str]
     allow_trailing: bool
     """Whether an extra separator is allowed at the end."""
+
+    def visit(self, f: TVisitor) -> Repeated:
+        return Repeated(self.positive, f(self.item), self.separator, self.allow_trailing)
 
 
 @dataclass
