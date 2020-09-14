@@ -105,7 +105,7 @@ def test_labeled_concatenation():
                 )
 
             foo_field: str
-            bar_field: rust_parser.gll.semantics.Maybe[str]
+            bar_field: typing.Optional[str]
             baz_field: str
 
 

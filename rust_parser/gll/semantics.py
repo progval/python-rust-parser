@@ -203,7 +203,7 @@ class SemanticsGenerator:
                 return f"typing.Union[{', '.join(members)}]"
 
             case grammar.Option(item):
-                return f"rust_parser.gll.semantics.Maybe[{self.node_to_type(item)}]"
+                return f"typing.Optional[{self.node_to_type(item)}]"
 
             case grammar.Repeated(positive, item, separator, allow_trailing):
                 return f"typing.List[{self.node_to_type(item)}]"
