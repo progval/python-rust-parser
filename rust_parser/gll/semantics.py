@@ -31,7 +31,7 @@ from tatsu.util import safe_name
 from . import grammar
 
 
-_IMPORTS = ["dataclasses", "typing"]
+_IMPORTS = ["dataclasses", "enum", "typing"]
 """Modules imported by the generated source code."""
 
 
@@ -225,6 +225,19 @@ class SemanticsGenerator:
             case _:
                 return default_name
 
+    def _alternation_can_be_enum(self, items: List[grammar.RuleNode]) -> bool:
+        """Returns whether all the items in an alternation are empty, meaning the
+        alternation can be a simply Python Enum rather than an ADT."""
+        for item in items:
+            match item:
+                case grammar.LabeledNode(_, grammar.Empty()):
+                    # TODO: also support grammar.Empty() unlabeled
+                    pass
+                case _:
+                    return False
+
+        return True
+
     def _nodes_to_variant_names(self, items: List[grammar.RuleNode]) -> List[str]:
         variant_names = []
         for (i, item) in enumerate(items):
@@ -389,6 +402,34 @@ class SemanticsGenerator:
                     for (name, type_) in zip(field_names, field_types)
                 )
                 lines.append("")
+                return "\n".join(lines)
+
+            case grammar.Alternation(items) if self._alternation_can_be_enum(items):
+                variant_names = self._nodes_to_variant_names(items)
+                serialized_variant_names = ", ".join(
+                    f'"{name}"' for name in variant_names
+                )
+
+                lines = [
+                    f"@enum.unique",
+                    f"class {type_name}(enum.Enum):",
+                    f"    @staticmethod",
+                    f"    def _variants():",
+                    f"        return frozenset([{serialized_variant_names}])",
+                    f"",
+                    f"    @classmethod",
+                    f"    def from_ast(cls, ast) -> {type_name}:",
+                    f"        (variant,) = set(ast) & cls._variants()",
+                    f"        return cls(variant)",
+                    f""
+                ]
+
+                for variant_name in variant_names:
+                    upper_variant_name = self.gen_local_name(variant_name.upper())
+                    lines.append(f'    {upper_variant_name} = "{variant_name}"')
+
+                lines.append("")
+
                 return "\n".join(lines)
 
             case grammar.Alternation(items):

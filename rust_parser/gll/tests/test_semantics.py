@@ -36,6 +36,7 @@ def test_simple_grammar():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -97,6 +98,7 @@ def test_labeled_concatenation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -156,6 +158,7 @@ def test_labeled_alternation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -260,6 +263,7 @@ def test_labeled_alternation_labeled_alternation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -341,6 +345,7 @@ def test_option():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -399,6 +404,7 @@ def test_empty_in_concatenation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -466,6 +472,7 @@ def test_sequence_in_concatenation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -508,6 +515,75 @@ def test_sequence_in_concatenation():
         g.parse("baz", semantics=semantics)
 
 
+def test_simple_alternation():
+    """An alternation of only empty subtrees, meaning it can be serialialized as
+    an Enum rather than an ADT."""
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Alternation(
+                [
+                    gll_grammar.LabeledNode("Foo", gll_grammar.Empty()),
+                    gll_grammar.LabeledNode("Bar", gll_grammar.Empty()),
+                ]
+            )
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Alternation(
+                [
+                    gll_grammar.LabeledNode("Foo", gll_grammar.StringLiteral("foo")),
+                    gll_grammar.LabeledNode("Bar", gll_grammar.StringLiteral("bar")),
+                ]
+            )
+        }
+    )
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @enum.unique
+        class Main(enum.Enum):
+            @staticmethod
+            def _variants():
+                return frozenset(["Foo", "Bar"])
+
+            @classmethod
+            def from_ast(cls, ast) -> Main:
+                (variant,) = set(ast) & cls._variants()
+                return cls(variant)
+
+            FOO = "Foo"
+            BAR = "Bar"
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert g.parse("foo", semantics=semantics) == Main.FOO
+    assert g.parse("bar", semantics=semantics) == Main.BAR
+    with pytest.raises(exceptions.FailedParse):
+        g.parse("baz", semantics=semantics)
+
+
 def test_alternation_with_anonymous_variant_in_concatenation():
     grammar = gll_grammar.Grammar(
         rules={
@@ -539,6 +615,7 @@ def test_alternation_with_anonymous_variant_in_concatenation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -610,6 +687,7 @@ def test_alternation_in_concatenation():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -681,6 +759,7 @@ def test_rule_reference():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -768,6 +847,7 @@ def test_root_repeated_rule_reference():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
@@ -869,6 +949,7 @@ def test_nested_repeated_rule_reference():
         from __future__ import annotations
 
         import dataclasses
+        import enum
         import typing
 
         import rust_parser.gll.semantics
