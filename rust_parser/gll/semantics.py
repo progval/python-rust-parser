@@ -163,7 +163,7 @@ class SemanticsGenerator:
             name += "_"
         return name
 
-    def node_to_type(self, node: grammar.RuleNode):
+    def node_to_type(self, node: grammar.RuleNode) -> str:
         """From a rule's description, return a type representing its AST."""
         match node:
             case grammar.Empty():
@@ -225,6 +225,12 @@ class SemanticsGenerator:
             case _:
                 return default_name
 
+    def _nodes_to_variant_names(self, items: List[grammar.RuleNode]) -> List[str]:
+        variant_names = []
+        for (i, item) in enumerate(items):
+            variant_names.append(self.node_to_name(item, f"Variant{i}"))
+        return variant_names
+
     def node_to_constructor(self, node: grammar.RuleNode, var_name: str) -> str:
         """From a rule's description, return an expression to build it from a Tatsu AST."""
         match node:
@@ -253,19 +259,16 @@ class SemanticsGenerator:
                 return f"tuple(ast.values())"
 
             case grammar.Alternation(items):
-                labeled_items = []
-                for (i, item) in enumerate(items):
-                    name = self.node_to_name(item, f"Variant{i}")
-                    labeled_items.append((name, item))
+                variant_names = self._nodes_to_variant_names(items)
+
                 variants = [
                     (
                         f"{name}=(lambda: "
                         + self.node_to_constructor(item, f"ast.{name}")
                         + ")"
                     )
-                    for (name, item) in labeled_items
+                    for (name, item) in zip(variant_names, items)
                 ]
-                # Tatsu puts the name of the variant last in the dict, so we can use that.
                 # FIXME: that's unreadable, it needs to be refactored
                 return f"(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict({', '.join(variants)}))()"
 
@@ -389,29 +392,12 @@ class SemanticsGenerator:
                 return "\n".join(lines)
 
             case grammar.Alternation(items):
-                # Ideally, we would use algebraic data types here.
-                # Bad news: Python doesn't have ADTs.
-                # Good news: PEP 622 is close enough, so we'll use that.
                 blocks = []
-                variant_names = []
-                for (i, item) in enumerate(items):
-                    match item:
-                        case grammar.LabeledNode(name, item):
-                            # We're in luck! We have a human-supplied name for this variant
-                            # TODO: make sure it's unique
-                            block = self.node_to_type_code(
-                                self.gen_local_name(name), item,
-                            )
-
-                        case _:
-                            # else, generate a name.
-                            # TODO: make sure it's unique
-                            name = f"{type_name}_{i}"
-                            block = self.node_to_type_code(
-                                self.gen_local_name(name), item,
-                            )
-
-                    variant_names.append(name)
+                variant_names = self._nodes_to_variant_names(items)
+                for (name, item) in zip(variant_names, items):
+                    block = self.node_to_type_code(
+                        self.gen_local_name(name), item,
+                    )
                     blocks.append(textwrap.indent(block, "    "))
 
                 blocks.insert(
