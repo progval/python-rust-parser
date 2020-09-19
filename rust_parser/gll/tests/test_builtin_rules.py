@@ -19,9 +19,9 @@ import re
 
 from tatsu.grammars import Grammar
 
-from ..builtin_rules import IDENT, PUNCT, LITERAL, TOKEN_TREE, BuiltinSemantics
+from ..builtin_rules import IDENT, LIFETIME, PUNCT, LITERAL, TOKEN_TREE, BuiltinSemantics, BUILTIN_RULES
 
-grammar = Grammar("gram", [TOKEN_TREE.RULE, IDENT.RULE, PUNCT.RULE, LITERAL.RULE])
+grammar = Grammar("gram", BUILTIN_RULES)
 
 
 def parse(s):
@@ -35,6 +35,17 @@ def test_ident():
     assert parse("foo42") == TOKEN_TREE(IDENT("foo42"))
     assert parse("foo_bar") == TOKEN_TREE(IDENT("foo_bar"))
     assert parse("_42") == TOKEN_TREE(IDENT("_42"))
+
+
+def test_lifetime():
+    assert parse("'foo") == TOKEN_TREE(LIFETIME("foo"))
+    assert parse("'foo ") == TOKEN_TREE(LIFETIME("foo"))
+    assert parse(" 'foo") == TOKEN_TREE(LIFETIME("foo"))
+    assert parse("' foo") == TOKEN_TREE(LIFETIME("foo"))
+    assert parse(" ' foo") == TOKEN_TREE(LIFETIME("foo"))
+    assert parse("'foo42") == TOKEN_TREE(LIFETIME("foo42"))
+    assert parse("'foo_bar") == TOKEN_TREE(LIFETIME("foo_bar"))
+    assert parse("'_42") == TOKEN_TREE(LIFETIME("_42"))
 
 
 def test_punct():

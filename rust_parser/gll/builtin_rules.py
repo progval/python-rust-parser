@@ -53,6 +53,23 @@ class IDENT:
 
 
 @dataclass
+class LIFETIME:
+    lifetime: str
+
+    RULE = grammars.Rule(
+        ast=None,
+        name="LIFETIME",
+        exp=grammars.Pattern("\s*'\s*" + IDENT._IDENTIFIER),
+        params=None,
+        kwparams=None,
+    )
+
+    @classmethod
+    def from_ast(cls, ast: str) -> LIFETIME:
+        return cls(ast.strip()[1:].strip())
+
+
+@dataclass
 class PUNCT:
     punct: str
 
@@ -109,6 +126,7 @@ class TOKEN_TREE:
             [
                 grammars.RuleRef("LITERAL"),
                 grammars.RuleRef("IDENT"),
+                grammars.RuleRef("LIFETIME"),
                 grammars.RuleRef("PUNCT"),
                 grammars.Sequence(
                     AST(
@@ -154,6 +172,10 @@ class BuiltinSemantics:
         return IDENT.from_ast(ast)
 
     @staticmethod
+    def LIFETIME(ast):
+        return LIFETIME.from_ast(ast)
+
+    @staticmethod
     def PUNCT(ast):
         return PUNCT.from_ast(ast)
 
@@ -164,3 +186,6 @@ class BuiltinSemantics:
     @staticmethod
     def TOKEN_TREE(ast):
         return TOKEN_TREE.from_ast(ast)
+
+
+BUILTIN_RULES = [TOKEN_TREE.RULE, IDENT.RULE, LIFETIME.RULE, PUNCT.RULE, LITERAL.RULE]

@@ -118,8 +118,8 @@ def node_to_tatsu(node: gll_grammar.RuleNode):
 
 
 
-def generate_tatsu_grammar(grammar: gll_grammar.Grammar) -> tatsu_grammars.Grammar:
-    tatsu_rules = []
+def generate_tatsu_grammar(grammar: gll_grammar.Grammar, extra_rules=()) -> tatsu_grammars.Grammar:
+    tatsu_rules = list(extra_rules)
     for (symbol, rule) in grammar.rules.items():
         tatsu_rule = tatsu_grammars.Rule(
             ast=None,
