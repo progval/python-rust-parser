@@ -29,6 +29,7 @@ from typing import Dict, Generic, List, Optional, Type, TypeVar
 from tatsu.util import safe_name
 
 from . import grammar
+from .builtin_rules import BUILTIN_RULES
 
 
 _IMPORTS = ["dataclasses", "enum", "typing"]
@@ -148,8 +149,14 @@ class Maybe(Generic[T]):
 
 
 class SemanticsGenerator:
-    def __init__(self):
+    def __init__(self, use_builtin_rules):
+        self.use_builtin_rules = use_builtin_rules
         self.rule_name_to_type_name: Dict[str, str] = {}
+        if use_builtin_rules:
+            for rule in BUILTIN_RULES:
+                self.rule_name_to_type_name[rule.name] = (
+                    f"rust_parser.gll.builtin_rules.{rule.name}"
+                )
         self.used_global_names: Set[str] = set(keyword.kwlist)
         self.generated_global_types: Set[str] = set()
 
@@ -484,7 +491,11 @@ class SemanticsGenerator:
                 assert False, node
 
     def grammar_to_semantics_code(self, grammar: grammar.Grammar) -> str:
-        lines = ["class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):"]
+        lines = []
+        if self.use_builtin_rules:
+            lines.append("class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):")
+        else:
+            lines.append("class Semantics:")
         for rule_name in grammar.rules:
             type_name = self.rule_name_to_type_name[rule_name]
             lines.append(
@@ -516,12 +527,15 @@ class SemanticsGenerator:
         return "\n\n".join(blocks)
 
 
-def generate_semantics_code(grammar: grammar.Grammar) -> str:
+def generate_semantics_code(grammar: grammar.Grammar, use_builtin_rules=False) -> str:
+    local_imports = ["import rust_parser.gll.semantics\n"]
+    if use_builtin_rules:
+        local_imports.append("import rust_parser.gll.builtin_rules\n")
     blocks = [
         "from __future__ import annotations",
         "\n".join(f"import {name}" for name in _IMPORTS),
-        "import rust_parser.gll.semantics\nimport rust_parser.gll.builtin_rules\n",
-        SemanticsGenerator().generate(grammar),
+        "".join(local_imports),
+        SemanticsGenerator(use_builtin_rules=use_builtin_rules).generate(grammar),
     ]
 
 

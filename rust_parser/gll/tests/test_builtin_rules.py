@@ -19,7 +19,15 @@ import re
 
 from tatsu.grammars import Grammar
 
-from ..builtin_rules import IDENT, LIFETIME, PUNCT, LITERAL, TOKEN_TREE, BuiltinSemantics, BUILTIN_RULES
+from ..builtin_rules import (
+    IDENT,
+    LIFETIME,
+    PUNCT,
+    LITERAL,
+    TOKEN_TREE,
+    BuiltinSemantics,
+    BUILTIN_RULES,
+)
 
 grammar = Grammar("gram", BUILTIN_RULES)
 
