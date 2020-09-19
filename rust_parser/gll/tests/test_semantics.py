@@ -40,6 +40,7 @@ def test_simple_grammar():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         class Foo(str):
@@ -48,7 +49,7 @@ def test_simple_grammar():
                 return cls(ast)
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Foo(self, ast) -> Foo:
                 return Foo.from_ast(ast)
     """
@@ -102,6 +103,7 @@ def test_labeled_concatenation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -119,7 +121,7 @@ def test_labeled_concatenation():
             baz_field: bool
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -162,6 +164,7 @@ def test_labeled_alternation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @typing.sealed
@@ -184,7 +187,7 @@ def test_labeled_alternation():
                     return cls(ast)
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -267,6 +270,7 @@ def test_labeled_alternation_labeled_alternation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @typing.sealed
@@ -310,7 +314,7 @@ def test_labeled_alternation_labeled_alternation():
                 baz2: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -349,6 +353,7 @@ def test_option():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         class MainInner(str):
@@ -360,7 +365,7 @@ def test_option():
         Main = rust_parser.gll.semantics.Maybe[MainInner]
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -408,6 +413,7 @@ def test_empty_in_concatenation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -425,7 +431,7 @@ def test_empty_in_concatenation():
             baz_field: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -476,6 +482,7 @@ def test_sequence_in_concatenation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -493,7 +500,7 @@ def test_sequence_in_concatenation():
             baz_field: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -550,6 +557,7 @@ def test_simple_alternation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @enum.unique
@@ -567,7 +575,7 @@ def test_simple_alternation():
             BAR = "Bar"
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -619,6 +627,7 @@ def test_alternation_with_anonymous_variant_in_concatenation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -634,7 +643,7 @@ def test_alternation_with_anonymous_variant_in_concatenation():
             bar_field: typing.Union[str, None]
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -691,6 +700,7 @@ def test_alternation_in_concatenation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -708,7 +718,7 @@ def test_alternation_in_concatenation():
             baz_field: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
     """
@@ -763,6 +773,7 @@ def test_rule_reference():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -793,7 +804,7 @@ def test_rule_reference():
             bar2_field: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
 
@@ -851,6 +862,7 @@ def test_root_repeated_rule_reference():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @typing.sealed
@@ -889,7 +901,7 @@ def test_root_repeated_rule_reference():
             bar2_field: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
 
@@ -953,6 +965,7 @@ def test_nested_repeated_rule_reference():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @dataclasses.dataclass
@@ -981,7 +994,7 @@ def test_nested_repeated_rule_reference():
             bar2_field: str
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
 
@@ -1033,6 +1046,7 @@ def test_option_in_root_alternation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @typing.sealed
@@ -1052,7 +1066,7 @@ def test_option_in_root_alternation():
             Bar = rust_parser.gll.semantics.Maybe[BarInner]
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
         """
@@ -1092,6 +1106,7 @@ def test_empty_in_root_alternation():
         import typing
 
         import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
 
 
         @typing.sealed
@@ -1107,7 +1122,7 @@ def test_empty_in_root_alternation():
                 pass
 
 
-        class Semantics:
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
             def Main(self, ast) -> Main:
                 return Main.from_ast(ast)
         """

@@ -484,7 +484,7 @@ class SemanticsGenerator:
                 assert False, node
 
     def grammar_to_semantics_code(self, grammar: grammar.Grammar) -> str:
-        lines = ["class Semantics:"]
+        lines = ["class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):"]
         for rule_name in grammar.rules:
             type_name = self.rule_name_to_type_name[rule_name]
             lines.append(
@@ -520,7 +520,7 @@ def generate_semantics_code(grammar: grammar.Grammar) -> str:
     blocks = [
         "from __future__ import annotations",
         "\n".join(f"import {name}" for name in _IMPORTS),
-        "import rust_parser.gll.semantics\n",
+        "import rust_parser.gll.semantics\nimport rust_parser.gll.builtin_rules\n",
         SemanticsGenerator().generate(grammar),
     ]
 
