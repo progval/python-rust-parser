@@ -279,7 +279,7 @@ class SemanticsGenerator:
                 variants = [
                     (
                         f"{name}=(lambda: "
-                        + self.node_to_constructor(item, f"ast.{name}")
+                        + self.node_to_constructor(item, f'ast["{name}"]')
                         + ")"
                     )
                     for (name, item) in zip(variant_names, items)
@@ -294,7 +294,8 @@ class SemanticsGenerator:
                 return f"{self.node_to_constructor(item, var_name)} if {var_name} else None"
 
             case grammar.Repeated(positive, item, separator, allow_trailing):
-                iter_var_name = var_name.split(".")[-1] + "_item"
+                # FIXME: ugly
+                iter_var_name = var_name.split(".")[-1].replace('["', "_").replace('"]', '') + "_item"
                 return (
                     f"[{self.node_to_constructor(item, f'{iter_var_name}')} "
                     f"for {iter_var_name} in {var_name}]"
@@ -373,7 +374,7 @@ class SemanticsGenerator:
                     for (i, item) in enumerate(items)
                 ]
                 constructors = [
-                    self.node_to_constructor(item, f"ast.{name}")
+                    self.node_to_constructor(item, f'ast["{name}"]')
                     for (name, item) in zip(field_names, items)
                 ]
                 field_types = [

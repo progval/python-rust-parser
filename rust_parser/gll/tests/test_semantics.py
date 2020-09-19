@@ -110,9 +110,9 @@ def test_labeled_concatenation():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
-                    bar_field=str(ast.bar_field) if ast.bar_field else None,
-                    baz_field=bool(ast.baz_field),
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=str(ast["bar_field"]) if ast["bar_field"] else None,
+                    baz_field=bool(ast["baz_field"]),
                 )
 
             foo_field: str
@@ -279,8 +279,8 @@ def test_labeled_alternation_labeled_alternation():
                 @classmethod
                 def from_ast(cls, ast) -> Foo:
                     return cls(
-                        foo1=str(ast.foo1),
-                        foo2=str(ast.foo2),
+                        foo1=str(ast["foo1"]),
+                        foo2=str(ast["foo2"]),
                     )
 
                 foo1: str
@@ -291,8 +291,8 @@ def test_labeled_alternation_labeled_alternation():
                 @classmethod
                 def from_ast(cls, ast) -> Bar:
                     return cls(
-                        bar1=str(ast.bar1),
-                        bar2=str(ast.bar2),
+                        bar1=str(ast["bar1"]),
+                        bar2=str(ast["bar2"]),
                     )
 
                 bar1: str
@@ -303,8 +303,8 @@ def test_labeled_alternation_labeled_alternation():
                 @classmethod
                 def from_ast(cls, ast) -> Baz:
                     return cls(
-                        baz1=str(ast.baz1),
-                        baz2=str(ast.baz2),
+                        baz1=str(ast["baz1"]),
+                        baz2=str(ast["baz2"]),
                     )
 
                 baz1: str
@@ -416,9 +416,9 @@ def test_empty_in_concatenation():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
+                    foo_field=str(ast["foo_field"]),
                     bar_field=None,
-                    baz_field=str(ast.baz_field),
+                    baz_field=str(ast["baz_field"]),
                 )
 
             foo_field: str
@@ -484,9 +484,9 @@ def test_sequence_in_concatenation():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
-                    bar_field=[str(bar_field_item) for bar_field_item in ast.bar_field],
-                    baz_field=str(ast.baz_field),
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=[str(ast_bar_field_item) for ast_bar_field_item in ast["bar_field"]],
+                    baz_field=str(ast["baz_field"]),
                 )
 
             foo_field: str
@@ -627,8 +627,8 @@ def test_alternation_with_anonymous_variant_in_concatenation():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
-                    bar_field=(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict(Bar1=(lambda: str(ast.Bar1)), Variant1=(lambda: str(ast.Variant1))))(),
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict(Bar1=(lambda: str(ast["Bar1"])), Variant1=(lambda: str(ast["Variant1"]))))(),
                 )
 
             foo_field: str
@@ -699,9 +699,9 @@ def test_alternation_in_concatenation():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
-                    bar_field=(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict(Bar1=(lambda: str(ast.Bar1)), Bar2=(lambda: str(ast.Bar2))))(),
-                    baz_field=str(ast.baz_field),
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=(lambda constructors: constructors.get((list(set(constructors) & set(ast)) or [None])[0], lambda: None))(dict(Bar1=(lambda: str(ast["Bar1"])), Bar2=(lambda: str(ast["Bar2"]))))(),
+                    baz_field=str(ast["baz_field"]),
                 )
 
             foo_field: str
@@ -771,9 +771,9 @@ def test_rule_reference():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
-                    bar_field=ast.bar_field,
-                    baz_field=str(ast.baz_field),
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=ast["bar_field"],
+                    baz_field=str(ast["baz_field"]),
                 )
 
             foo_field: str
@@ -786,8 +786,8 @@ def test_rule_reference():
             @classmethod
             def from_ast(cls, ast) -> Bar:
                 return cls(
-                    bar1_field=str(ast.bar1_field),
-                    bar2_field=str(ast.bar2_field),
+                    bar1_field=str(ast["bar1_field"]),
+                    bar2_field=str(ast["bar2_field"]),
                 )
 
             bar1_field: str
@@ -882,8 +882,8 @@ def test_root_repeated_rule_reference():
             @classmethod
             def from_ast(cls, ast) -> Bar:
                 return cls(
-                    bar1_field=str(ast.bar1_field),
-                    bar2_field=str(ast.bar2_field),
+                    bar1_field=str(ast["bar1_field"]),
+                    bar2_field=str(ast["bar2_field"]),
                 )
 
             bar1_field: str
@@ -961,8 +961,8 @@ def test_nested_repeated_rule_reference():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo_field=str(ast.foo_field),
-                    bar_field=[bar_field_item for bar_field_item in ast.bar_field],
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=[ast_bar_field_item for ast_bar_field_item in ast["bar_field"]],
                 )
 
             foo_field: str
@@ -974,8 +974,8 @@ def test_nested_repeated_rule_reference():
             @classmethod
             def from_ast(cls, ast) -> Bar:
                 return cls(
-                    bar1_field=str(ast.bar1_field),
-                    bar2_field=str(ast.bar2_field),
+                    bar1_field=str(ast["bar1_field"]),
+                    bar2_field=str(ast["bar2_field"]),
                 )
 
             bar1_field: str
@@ -1162,8 +1162,8 @@ def test_reference_ident():
             @classmethod
             def from_ast(cls, ast) -> Main:
                 return cls(
-                    foo=ast.foo,
-                    bar=ast.bar,
+                    foo=ast["foo"],
+                    bar=ast["bar"],
                 )
 
             foo: rust_parser.gll.builtin_rules.IDENT
@@ -1175,8 +1175,8 @@ def test_reference_ident():
             @classmethod
             def from_ast(cls, ast) -> SBar:
                 return cls(
-                    bar1=str(ast.bar1),
-                    bar2=str(ast.bar2),
+                    bar1=str(ast["bar1"]),
+                    bar2=str(ast["bar2"]),
                 )
 
             bar1: str
