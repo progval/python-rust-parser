@@ -96,3 +96,8 @@ class Parser:
         self.ast = importlib.util.module_from_spec(spec)
         sys.modules[module_fullname] = self.ast  # needed by dataclasses when executing
         spec.loader.exec_module(self.ast)
+
+    def parse(self, s, start_rule_name):
+        return self.tatsu_grammar.parse(
+            s, semantics=self.ast.Semantics(), rule_name=start_rule_name
+        )

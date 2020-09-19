@@ -15,8 +15,54 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
+from ..gll import grammar
+from ..gll import builtin_rules
 from ..parser import Parser
 
 
-def test_parser():
-    Parser()
+def test_parse():
+    p = Parser(start_rules={"ExprMain": "Expr", "ModuleMain": "ModuleContents"})
+
+    assert p.parse("1 + 2", start_rule_name="ExprMain") == p.ast.Expr(
+        attrs=[],
+        kind=p.ast.ExprKind.Binary(
+            left=p.ast.Expr(
+                attrs=[],
+                kind=p.ast.ExprKind.Literal(inner=builtin_rules.LITERAL(literal="1")),
+            ),
+            op=p.ast.BinaryOp.ADD,
+            right=p.ast.Expr(
+                attrs=[],
+                kind=p.ast.ExprKind.Literal(inner=builtin_rules.LITERAL(literal="2")),
+            ),
+        ),
+    )
+
+    assert p.parse(
+        'const foo: bar = "baz";', start_rule_name="ModuleMain"
+    ) == p.ast.ModuleContents(
+        attrs=[],
+        items=[
+            p.ast.Item(
+                attrs=[],
+                vis=None,
+                kind=p.ast.ItemKind.Const(
+                    name=builtin_rules.IDENT(ident="foo"),
+                    ty=p.ast.Type.Path_(
+                        inner=p.ast.QPath.Unqualified(
+                            inner=p.ast.Path(
+                                global_=False,
+                                path=[p.ast.RelativePathInner(inner="segments")],
+                            )
+                        )
+                    ),
+                    value=p.ast.Expr(
+                        attrs=[],
+                        kind=p.ast.ExprKind.Literal(
+                            inner=builtin_rules.LITERAL(literal='"baz"')
+                        ),
+                    ),
+                ),
+            )
+        ],
+    )
