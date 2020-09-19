@@ -160,6 +160,12 @@ class SemanticsGenerator:
         self.used_global_names: Set[str] = set(keyword.kwlist)
         self.generated_global_types: Set[str] = set()
 
+    def gen_global_name(self, name):
+        while name in self.used_global_names:
+            name += "_"
+        self.used_global_names.add(name)
+        return name
+
     def gen_local_name(self, name):
         while name in self.used_global_names:
             name += "_"
@@ -305,7 +311,7 @@ class SemanticsGenerator:
                 # should be unreachable
                 assert False, node
 
-    def node_to_type_code(self, type_name: str, node: grammar.RuleNode) -> str:
+    def node_to_type_code(self, type_name: str, node: grammar.RuleNode, local: bool) -> str:
         """From a node description, return the source code of a class
         representing its AST."""
 
@@ -320,9 +326,7 @@ class SemanticsGenerator:
 
             case grammar.LabeledNode(name, item):
                 # TODO: if the type_name was auto-generated, use the label instead
-                return self.node_to_type_code(
-                    type_name, item,
-                )
+                return self.node_to_type_code(type_name, item, local)
 
             case grammar.StringLiteral(string):
                 return textwrap.dedent(
@@ -440,7 +444,7 @@ class SemanticsGenerator:
                 variant_names = self._nodes_to_variant_names(items)
                 for (name, item) in zip(variant_names, items):
                     block = self.node_to_type_code(
-                        self.gen_local_name(name), item,
+                        self.gen_local_name(name), item, local=True
                     )
                     blocks.append(textwrap.indent(block, "    "))
 
@@ -464,24 +468,32 @@ class SemanticsGenerator:
 
             case grammar.Option(item):
                 # TODO: better name
-                inner_name = self.gen_local_name(f"{type_name}Inner")
+                if local:
+                    inner_name = self.gen_local_name(f"{type_name}Inner")
+                else:
+                    inner_name = self.gen_global_name(f"{type_name}Inner")
                 blocks = [
-                    self.node_to_type_code(inner_name, item),
+                    self.node_to_type_code(inner_name, item, local),
                     f"{type_name} = rust_parser.gll.semantics.Maybe[{inner_name}]\n",
                 ]
                 return "\n\n".join(blocks)
 
             case grammar.Repeated(positive, item, separator, allow_trailing):
                 # TODO: better name
-                inner_name = self.gen_local_name(f"{type_name}Inner")
+                if local:
+                    inner_name = self.gen_local_name(f"{type_name}Inner")
+                    cls = "cls."
+                else:
+                    inner_name = self.gen_global_name(f"{type_name}Inner")
+                    cls = ""
                 blocks = [
-                    self.node_to_type_code(inner_name, item),
+                    self.node_to_type_code(inner_name, item, local),
                     textwrap.dedent(
                         f"""\
                         class {type_name}(typing.List[{inner_name}]):
                             @classmethod
                             def from_ast(cls, ast) -> {type_name}:
-                                return cls(map(cls.{inner_name}.from_ast, ast))
+                                return cls(map({cls}{inner_name}.from_ast, ast))
                         """
                     )
                 ]
@@ -519,7 +531,7 @@ class SemanticsGenerator:
 
         blocks = []
         for (rule_name, rule) in grammar.rules.items():
-            code = self.node_to_type_code(rule_name, rule)
+            code = self.node_to_type_code(rule_name, rule, local=False)
             self.generated_global_types.add(self.rule_name_to_type_name[rule_name])
             blocks.append(code)
 
