@@ -42,7 +42,7 @@ class IDENT:
     RULE = grammars.Rule(
         ast=None,
         name="IDENT",
-        exp=grammars.Pattern("\s*" + _IDENTIFIER),
+        exp=grammars.Pattern(r"\s*" + _IDENTIFIER),
         params=None,
         kwparams=None,
     )
@@ -59,7 +59,7 @@ class LIFETIME:
     RULE = grammars.Rule(
         ast=None,
         name="LIFETIME",
-        exp=grammars.Pattern("\s*'\s*" + IDENT._IDENTIFIER),
+        exp=grammars.Pattern(r"\s*'\s*" + IDENT._IDENTIFIER),
         params=None,
         kwparams=None,
     )
@@ -105,7 +105,7 @@ class LITERAL:
     RULE = grammars.Rule(
         ast=None,
         name="LITERAL",
-        exp=grammars.Pattern(f"\s*({'|'.join(_PATTERNS)})"),
+        exp=grammars.Pattern(rf"\s*({'|'.join(_PATTERNS)})"),
         params=None,
         kwparams=None,
     )
