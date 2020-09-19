@@ -22,8 +22,11 @@ import secrets
 import sys
 import tempfile
 import types
+import typing
 
 import tatsu
+import tatsu.ast
+import tatsu.grammars
 
 from .gll.tokens import tokenize_gll
 from .gll.grammar import parse_gll
@@ -45,7 +48,8 @@ ast_dir = tempfile.TemporaryDirectory("rust_parser_asts")
 
 
 class Parser:
-    def __init__(self):
+    def __init__(self, start_rules: typing.Dict[str, str]):
+
         code = "\n\n".join(
             pkg_resources.resource_string(
                 __name__, os.path.join(GRAMMAR_PATH, filename)
@@ -54,13 +58,35 @@ class Parser:
         )
         assert code
 
+        start_rules = [
+            tatsu.grammars.Rule(
+                ast=None,
+                params=None,
+                kwparams=None,
+                name=start_rule_name,
+                exp=tatsu.grammars.Sequence(
+                    ast=tatsu.ast.AST(
+                        sequence=[
+                            tatsu.grammars.RuleRef(start_rule_target),
+                            tatsu.grammars.EOF(),
+                        ]
+                    )
+                ),
+            )
+            for (start_rule_name, start_rule_target) in start_rules.items()
+        ]
+
         tokens = tokenize_gll(code)
         gll_grammar = parse_gll(tokens)
-        self.tatsu_grammar = generate_tatsu_grammar(gll_grammar, extra_rules=BUILTIN_RULES)
+        self.tatsu_grammar = generate_tatsu_grammar(
+            gll_grammar, extra_rules=BUILTIN_RULES + start_rules
+        )
 
         # TODO: that's ugly, we shouldn't need a tempfile for that, but it's
         # the only way I could find to make pytest find the code
-        semantics_code = generate_semantics_code(simplify_grammar(gll_grammar), use_builtin_rules=True)
+        semantics_code = generate_semantics_code(
+            simplify_grammar(gll_grammar), use_builtin_rules=True
+        )
         module_name = "ast_" + secrets.token_hex(10)
         module_fullname = "rust_parser.asts." + module_name
         filename = os.path.join(ast_dir.name, module_name + ".py")
