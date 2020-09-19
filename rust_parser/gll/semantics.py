@@ -264,7 +264,7 @@ class SemanticsGenerator:
 
             case grammar.SymbolName(rule_name):
                 # alias of an other rule
-                return f"{self.rule_name_to_type_name[rule_name]}.from_ast({var_name})"
+                return f"{var_name}"
 
             case grammar.Concatenation(items):
                 # TODO: use namedtuple if they have names
@@ -363,7 +363,7 @@ class SemanticsGenerator:
 
                             @classmethod
                             def from_ast(cls, ast) -> {type_name}:
-                                return cls(inner={target_name}.from_ast(ast))
+                                return cls(inner=ast)
                         """
                     )
 

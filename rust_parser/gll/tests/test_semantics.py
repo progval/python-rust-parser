@@ -24,6 +24,7 @@ from tatsu import exceptions
 from .. import grammar as gll_grammar
 from ..semantics import generate_semantics_code, Maybe
 from ..generate import generate_tatsu_grammar
+from ..builtin_rules import BUILTIN_RULES, IDENT
 
 
 def test_simple_grammar():
@@ -771,7 +772,7 @@ def test_rule_reference():
             def from_ast(cls, ast) -> Main:
                 return cls(
                     foo_field=str(ast.foo_field),
-                    bar_field=Bar.from_ast(ast.bar_field),
+                    bar_field=ast.bar_field,
                     baz_field=str(ast.baz_field),
                 )
 
@@ -868,7 +869,7 @@ def test_root_repeated_rule_reference():
 
                 @classmethod
                 def from_ast(cls, ast) -> Bar_Inner:
-                    return cls(inner=Bar.from_ast(ast))
+                    return cls(inner=ast)
 
             class Bar_(typing.List[Bar_Inner]):
                 @classmethod
@@ -961,7 +962,7 @@ def test_nested_repeated_rule_reference():
             def from_ast(cls, ast) -> Main:
                 return cls(
                     foo_field=str(ast.foo_field),
-                    bar_field=[Bar.from_ast(bar_field_item) for bar_field_item in ast.bar_field],
+                    bar_field=[bar_field_item for bar_field_item in ast.bar_field],
                 )
 
             foo_field: str
@@ -1121,3 +1122,82 @@ def test_empty_in_root_alternation():
     assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
     return  # TODO: the following will fail
     assert g.parse("", semantics=semantics) == Main.Bar()
+
+
+def test_reference_ident():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode("foo", gll_grammar.SymbolName("IDENT")),
+                    gll_grammar.LabeledNode("bar", gll_grammar.SymbolName("SBar")),
+                ]
+            ),
+            "SBar": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode("bar1", gll_grammar.StringLiteral("bar1")),
+                    gll_grammar.LabeledNode("bar2", gll_grammar.StringLiteral("bar2")),
+                ]
+            ),
+        }
+    )
+
+    sc = generate_semantics_code(grammar, use_builtin_rules=True)
+    g = generate_tatsu_grammar(grammar, extra_rules=BUILTIN_RULES)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
+
+
+        @dataclasses.dataclass
+        class Main:
+            @classmethod
+            def from_ast(cls, ast) -> Main:
+                return cls(
+                    foo=ast.foo,
+                    bar=ast.bar,
+                )
+
+            foo: rust_parser.gll.builtin_rules.IDENT
+            bar: SBar
+
+
+        @dataclasses.dataclass
+        class SBar:
+            @classmethod
+            def from_ast(cls, ast) -> SBar:
+                return cls(
+                    bar1=str(ast.bar1),
+                    bar2=str(ast.bar2),
+                )
+
+            bar1: str
+            bar2: str
+
+
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+
+            def SBar(self, ast) -> SBar:
+                return SBar.from_ast(ast)
+        """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+    SBar = namespace["SBar"]
+
+    assert g.parse("foo bar1 bar2", semantics=semantics, rule_name="Main") == Main(
+        IDENT("foo"), SBar("bar1", "bar2")
+    )
