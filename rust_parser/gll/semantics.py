@@ -302,9 +302,13 @@ class SemanticsGenerator:
             case grammar.Repeated(positive, item, separator, allow_trailing):
                 # FIXME: ugly
                 iter_var_name = var_name.split(".")[-1].replace('["', "_").replace('"]', '') + "_item"
+                if separator:
+                    slice_ = "[0::2]"
+                else:
+                    slice_ = ""
                 return (
                     f"[{self.node_to_constructor(item, f'{iter_var_name}')} "
-                    f"for {iter_var_name} in {var_name}]"
+                    f"for {iter_var_name} in {var_name}]{slice_}"
                 )
 
             case _:
@@ -473,6 +477,10 @@ class SemanticsGenerator:
                 else:
                     inner_name = self.gen_global_name(f"{type_name}Inner")
                     cls = ""
+                if separator:
+                    slice_ = "[0::2]"
+                else:
+                    slice_ = ""
                 blocks = [
                     self.node_to_type_code(inner_name, item, local),
                     textwrap.dedent(
@@ -480,7 +488,7 @@ class SemanticsGenerator:
                         class {type_name}(typing.List[{inner_name}]):
                             @classmethod
                             def from_ast(cls, ast) -> {type_name}:
-                                return cls(map({cls}{inner_name}.from_ast, ast))
+                                return cls(list(map({cls}{inner_name}.from_ast, ast)){slice_})
                         """
                     )
                 ]

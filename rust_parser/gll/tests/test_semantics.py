@@ -874,7 +874,7 @@ def test_root_repeated_rule_reference():
             class Bar_(typing.List[Bar_Inner]):
                 @classmethod
                 def from_ast(cls, ast) -> Bar_:
-                    return cls(map(cls.Bar_Inner.from_ast, ast))
+                    return cls(list(map(cls.Bar_Inner.from_ast, ast)))
 
 
         @dataclasses.dataclass
@@ -910,6 +910,106 @@ def test_root_repeated_rule_reference():
         [Main.Bar_Inner(Bar("bar1", "bar2"))]
     )
     assert g.parse("bar1 bar2 bar1 bar2", semantics=semantics) == Main.Bar_(
+        [Main.Bar_Inner(Bar("bar1", "bar2")), Main.Bar_Inner(Bar("bar1", "bar2"))]
+    )
+
+
+def test_root_repeated_rule_reference_with_separator():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Alternation(
+                [
+                    gll_grammar.LabeledNode("Foo", gll_grammar.StringLiteral("foo")),
+                    gll_grammar.LabeledNode(
+                        "Bar",
+                        gll_grammar.Repeated(
+                            0, gll_grammar.SymbolName("Bar"), "::", False
+                        ),
+                    ),
+                ]
+            ),
+            "Bar": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode(
+                        "bar1_field", gll_grammar.StringLiteral("bar1")
+                    ),
+                    gll_grammar.LabeledNode(
+                        "bar2_field", gll_grammar.StringLiteral("bar2")
+                    ),
+                ]
+            ),
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @typing.sealed
+        class Main(metaclass=rust_parser.gll.semantics.ADT):
+            _variants = {"Foo": "Foo", "Bar": "Bar_"}
+
+            class Foo(str):
+                @classmethod
+                def from_ast(cls, ast: str) -> Foo:
+                    return cls(ast)
+
+            @dataclasses.dataclass
+            class Bar_Inner:
+                inner: Bar
+
+                @classmethod
+                def from_ast(cls, ast) -> Bar_Inner:
+                    return cls(inner=ast)
+
+            class Bar_(typing.List[Bar_Inner]):
+                @classmethod
+                def from_ast(cls, ast) -> Bar_:
+                    return cls(list(map(cls.Bar_Inner.from_ast, ast))[0::2])
+
+
+        @dataclasses.dataclass
+        class Bar:
+            @classmethod
+            def from_ast(cls, ast) -> Bar:
+                return cls(
+                    bar1_field=str(ast["bar1_field"]),
+                    bar2_field=str(ast["bar2_field"]),
+                )
+
+            bar1_field: str
+            bar2_field: str
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+
+            def Bar(self, ast) -> Bar:
+                return Bar.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+    Bar = namespace["Bar"]
+
+    assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
+    assert g.parse("bar1 bar2", semantics=semantics) == Main.Bar_(
+        [Main.Bar_Inner(Bar("bar1", "bar2"))]
+    )
+    assert g.parse("bar1 bar2 :: bar1 bar2", semantics=semantics) == Main.Bar_(
         [Main.Bar_Inner(Bar("bar1", "bar2")), Main.Bar_Inner(Bar("bar1", "bar2"))]
     )
 
@@ -1002,6 +1102,98 @@ def test_nested_repeated_rule_reference():
         "foo", [Bar("bar1", "bar2")]
     )
     assert g.parse("foo bar1 bar2 bar1 bar2", semantics=semantics) == Main(
+        "foo", [Bar("bar1", "bar2"), Bar("bar1", "bar2")]
+    )
+
+
+def test_nested_repeated_rule_reference_with_separator():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode(
+                        "foo_field", gll_grammar.StringLiteral("foo")
+                    ),
+                    gll_grammar.LabeledNode(
+                        "bar_field",
+                        gll_grammar.Repeated(
+                            0, gll_grammar.SymbolName("Bar"), "::", False
+                        ),
+                    ),
+                ]
+            ),
+            "Bar": gll_grammar.Concatenation(
+                [
+                    gll_grammar.LabeledNode(
+                        "bar1_field", gll_grammar.StringLiteral("bar1")
+                    ),
+                    gll_grammar.LabeledNode(
+                        "bar2_field", gll_grammar.StringLiteral("bar2")
+                    ),
+                ]
+            ),
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @dataclasses.dataclass
+        class Main:
+            @classmethod
+            def from_ast(cls, ast) -> Main:
+                return cls(
+                    foo_field=str(ast["foo_field"]),
+                    bar_field=[ast_bar_field_item for ast_bar_field_item in ast["bar_field"]][0::2],
+                )
+
+            foo_field: str
+            bar_field: typing.List[Bar]
+
+
+        @dataclasses.dataclass
+        class Bar:
+            @classmethod
+            def from_ast(cls, ast) -> Bar:
+                return cls(
+                    bar1_field=str(ast["bar1_field"]),
+                    bar2_field=str(ast["bar2_field"]),
+                )
+
+            bar1_field: str
+            bar2_field: str
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+
+            def Bar(self, ast) -> Bar:
+                return Bar.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+    Bar = namespace["Bar"]
+
+    assert g.parse("foo", semantics=semantics) == Main("foo", [])
+    assert g.parse("foo bar1 bar2", semantics=semantics) == Main(
+        "foo", [Bar("bar1", "bar2")]
+    )
+    assert g.parse("foo bar1 bar2 :: bar1 bar2", semantics=semantics) == Main(
         "foo", [Bar("bar1", "bar2"), Bar("bar1", "bar2")]
     )
 
