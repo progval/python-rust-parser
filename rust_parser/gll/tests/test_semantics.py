@@ -1003,3 +1003,121 @@ def test_nested_repeated_rule_reference():
     assert g.parse("foo bar1 bar2 bar1 bar2", semantics=semantics) == Main(
         "foo", [Bar("bar1", "bar2"), Bar("bar1", "bar2")]
     )
+
+
+def test_option_in_root_alternation():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Alternation(
+                items=[
+                    gll_grammar.LabeledNode(
+                        name="Foo", item=gll_grammar.StringLiteral("foo")
+                    ),
+                    gll_grammar.LabeledNode(
+                        name="Bar",
+                        item=gll_grammar.Option(item=gll_grammar.StringLiteral("bar")),
+                    ),
+                ]
+            )
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @typing.sealed
+        class Main(metaclass=rust_parser.gll.semantics.ADT):
+            _variants = {"Foo": "Foo", "Bar": "Bar"}
+
+            class Foo(str):
+                @classmethod
+                def from_ast(cls, ast: str) -> Foo:
+                    return cls(ast)
+
+            class BarInner(str):
+                @classmethod
+                def from_ast(cls, ast: str) -> BarInner:
+                    return cls(ast)
+
+            Bar = rust_parser.gll.semantics.Maybe[BarInner]
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+        """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
+    assert g.parse("bar", semantics=semantics) == Main.Bar.Just("bar")
+    assert g.parse("", semantics=semantics) == Main.Bar.Nothing()
+    assert g.parse("qux", semantics=semantics) == Main.Bar.Nothing()
+
+
+def test_empty_in_root_alternation():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.Alternation(
+                items=[
+                    gll_grammar.LabeledNode("Foo", gll_grammar.StringLiteral("foo")),
+                    gll_grammar.LabeledNode("Bar", gll_grammar.Empty()),
+                ]
+            )
+        }
+    )
+    sc = generate_semantics_code(grammar)
+    g = generate_tatsu_grammar(grammar)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+
+
+        @typing.sealed
+        class Main(metaclass=rust_parser.gll.semantics.ADT):
+            _variants = {"Foo": "Foo", "Bar": "Bar"}
+
+            class Foo(str):
+                @classmethod
+                def from_ast(cls, ast: str) -> Foo:
+                    return cls(ast)
+
+            class Bar:
+                pass
+
+
+        class Semantics:
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+        """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+
+    assert g.parse("foo", semantics=semantics) == Main.Foo("foo")
+    return  # TODO: the following will fail
+    assert g.parse("", semantics=semantics) == Main.Bar()

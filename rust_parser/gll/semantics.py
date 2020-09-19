@@ -68,14 +68,9 @@ class ADT(type):
             # get the class defined inside this one.
             variant_source = attributes[variant_type_name]
 
-            # It has only parents that inherit only 'object' directly because
-            # we defined it that way. Get these parents.
-            # If they didn't inherit directly, then this would add 'duplicate'
-            # inheritence, but we don't need to deal with that for now.
-            variant_mro = variant_source.mro()
-            (_variant, *variant_parents, _object) = variant_mro
-            assert _variant is variant_source
-            assert _object is object
+            variant_parents = list(variant_source.__bases__)
+            if object in variant_parents:
+                variant_parents.remove(object)
 
             variant_attributes = {}
             for (attr_name, attr) in variant_source.__dict__.items():
