@@ -347,30 +347,17 @@ class SemanticsGenerator:
                 # TODO: try to automatically reorder rule definition to
                 # minimize the first case
 
-                if target_name in self.generated_global_types:
-                    # the target is defined before this, we can inherit it.
-                    return textwrap.dedent(
-                        f"""\
-                        class {type_name}({target_name}):
-                            @classmethod
-                            def from_ast(cls, ast) -> {type_name}:
-                                return cls(ast)
-                        """
-                    )
-                else:
-                    # the target will be defined later in the file, we can't
-                    # inherit it
-                    return textwrap.dedent(
-                        f"""\
-                        @dataclasses.dataclass
-                        class {type_name}:
-                            inner: {target_name}
+                return textwrap.dedent(
+                    f"""\
+                    @dataclasses.dataclass
+                    class {type_name}:
+                        inner: {target_name}
 
-                            @classmethod
-                            def from_ast(cls, ast) -> {type_name}:
-                                return cls(inner=ast)
-                        """
-                    )
+                        @classmethod
+                        def from_ast(cls, ast) -> {type_name}:
+                            return cls(inner=ast)
+                    """
+                )
 
             case grammar.Concatenation(items):
                 field_names = [
