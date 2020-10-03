@@ -87,23 +87,20 @@ def test_parse_const_declaration(parser, ast):
 
 
 def test_parse_fn_declaration(parser, ast):
-    assert parser.parse(
-        "fn foo() { 42 }", start_rule_name="ModuleMain"
-    ) == ast.ModuleContents(
-        attrs=[],
-        items=[
+    def expected_ast(ret_ty):
+        return [
             ast.Item(
                 attrs=[],
                 vis=None,
                 kind=ast.ItemKind.Fn(
                     header=ast.FnHeader(
-                        constness=False, unsafety=False, asyncness=False, field_3=None
+                        constness=False, unsafety=False, asyncness=False, abi=None
                     ),
                     decl=ast.FnDecl(
                         name=builtin_rules.IDENT(ident="foo"),
                         generics=None,
                         args=None,
-                        field_3=None,
+                        ret_ty=ret_ty,
                         where_clause=None,
                     ),
                     body=ast.Block(
@@ -121,5 +118,30 @@ def test_parse_fn_declaration(parser, ast):
                     ),
                 ),
             )
-        ],
+        ]
+
+    assert parser.parse(
+        "fn foo() { 42 }", start_rule_name="ModuleMain"
+    ) == ast.ModuleContents(attrs=[], items=expected_ast(None))
+
+    assert parser.parse(
+        "fn foo() -> u64 { 42 }", start_rule_name="ModuleMain"
+    ) == ast.ModuleContents(
+        attrs=[],
+        items=expected_ast(
+            ast.Type.Path_(
+                inner=ast.QPath.Unqualified(
+                    inner=ast.Path(
+                        global_=False,
+                        path=[
+                            ast.RelativePathInner(
+                                inner=ast.PathSegment(
+                                    ident=builtin_rules.IDENT(ident="u64"), field_1=None
+                                )
+                            )
+                        ],
+                    )
+                )
+            ),
+        ),
     )

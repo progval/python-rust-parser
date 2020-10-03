@@ -80,6 +80,11 @@ def simplify_tree(node: grammar.RuleNode) -> grammar.RuleNode:
         case grammar.Alternation(_):
             return node
         
+        case grammar.Option(grammar.LabeledNode(name, item)):
+            # Move the label higher up the tree, so it can be used in
+            # concatenation field names.
+            return grammar.LabeledNode(name, grammar.Option(item))
+
         case grammar.Option(_):
             # It's tempting to simplify grammar.Option(grammar.Empty()), but it would
             # actually lose information in the resulting AST, even though it's only

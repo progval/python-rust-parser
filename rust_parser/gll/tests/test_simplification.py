@@ -87,3 +87,7 @@ def test_option():
     assert simplify_tree(grammar.Option(grammar.SymbolName("Foo"))) == grammar.Option(
         grammar.SymbolName("Foo")
     )
+
+    assert simplify_tree(
+        grammar.Option(grammar.LabeledNode("foo", grammar.SymbolName("Foo")))
+    ) == grammar.LabeledNode("foo", grammar.Option(grammar.SymbolName("Foo")))
