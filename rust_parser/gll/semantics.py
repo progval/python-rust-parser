@@ -315,7 +315,13 @@ class SemanticsGenerator:
                 # should be unreachable
                 assert False, node
 
-    def node_to_type_code(self, type_name: str, node: grammar.RuleNode, local: bool) -> str:
+    def node_to_type_code(
+        self,
+        type_name: str,
+        node: grammar.RuleNode,
+        local: bool,
+        ast_accessor: str = "ast"
+    ) -> str:
         """From a node description, return the source code of a class
         representing its AST."""
 
@@ -330,7 +336,7 @@ class SemanticsGenerator:
 
             case grammar.LabeledNode(name, item):
                 # TODO: if the type_name was auto-generated, use the label instead
-                return self.node_to_type_code(type_name, item, local)
+                return self.node_to_type_code(type_name, item, local, f'{ast_accessor}["{name}"]')
 
             case grammar.StringLiteral(string):
                 return textwrap.dedent(
@@ -338,7 +344,7 @@ class SemanticsGenerator:
                     class {type_name}(str):
                         @classmethod
                         def from_ast(cls, ast: str) -> {type_name}:
-                            return cls(ast)
+                            return cls({ast_accessor})
                     """
                 )
 
@@ -359,7 +365,7 @@ class SemanticsGenerator:
 
                         @classmethod
                         def from_ast(cls, ast) -> {type_name}:
-                            return cls(inner=ast)
+                            return cls(inner={ast_accessor})
                     """
                 )
 
@@ -369,7 +375,7 @@ class SemanticsGenerator:
                     for (i, item) in enumerate(items)
                 ]
                 constructors = [
-                    self.node_to_constructor(item, f'ast["{name}"]')
+                    self.node_to_constructor(item, f'{ast_accessor}["{name}"]')
                     for (name, item) in zip(field_names, items)
                 ]
                 field_types = [
@@ -417,7 +423,7 @@ class SemanticsGenerator:
                     f"",
                     f"    @classmethod",
                     f"    def from_ast(cls, ast) -> {type_name}:",
-                    f"        (variant,) = set(ast) & cls._variants()",
+                    f"        (variant,) = set({ast_accessor}) & cls._variants()",
                     f"        return cls(variant)",
                     f""
                 ]
@@ -434,6 +440,15 @@ class SemanticsGenerator:
                 blocks = []
                 variant_names = self._nodes_to_variant_names(items)
                 for (name, item) in zip(variant_names, items):
+
+                    # strip the label; we don't want it added to the accessor as
+                    # it's the job of the ADT to unpack it
+                    match item:
+                        case grammar.LabeledNode(name, inner_item):
+                            item = inner_item
+                        case _:
+                            pass
+
                     block = self.node_to_type_code(
                         self.gen_local_name(name), item, local=True
                     )
@@ -488,7 +503,7 @@ class SemanticsGenerator:
                         class {type_name}(typing.List[{inner_name}]):
                             @classmethod
                             def from_ast(cls, ast) -> {type_name}:
-                                return cls(list(map({cls}{inner_name}.from_ast, ast)){slice_})
+                                return cls(list(map({cls}{inner_name}.from_ast, {ast_accessor})){slice_})
                         """
                     )
                 ]

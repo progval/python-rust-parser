@@ -52,7 +52,13 @@ def test_parse():
                         inner=p.ast.QPath.Unqualified(
                             inner=p.ast.Path(
                                 global_=False,
-                                path=[p.ast.RelativePathInner(inner="segments")],
+                                path=[
+                                    p.ast.RelativePathInner(
+                                        inner=p.ast.PathSegment(
+                                            ident=builtin_rules.IDENT(ident="bar"), field_1=None
+                                        )
+                                    )
+                                ],
                             )
                         )
                     ),

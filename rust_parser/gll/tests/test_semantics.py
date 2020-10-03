@@ -1393,3 +1393,90 @@ def test_reference_ident():
     assert g.parse("foo bar1 bar2", semantics=semantics, rule_name="Main") == Main(
         IDENT("foo"), SBar("bar1", "bar2")
     )
+
+
+def test_labeled_repeated():
+    grammar = gll_grammar.Grammar(
+        rules={
+            "Main": gll_grammar.LabeledNode(
+                name="items",
+                item=gll_grammar.Repeated(
+                    positive=True,
+                    item=gll_grammar.SymbolName(name="Item"),
+                    separator="::",
+                    allow_trailing=False,
+                ),
+            ),
+            "Item": gll_grammar.Concatenation(
+                items=[
+                    gll_grammar.LabeledNode("foo", gll_grammar.StringLiteral("FOO")),
+                    gll_grammar.LabeledNode("bar", gll_grammar.StringLiteral("BAR")),
+                ]
+            ),
+        }
+    )
+
+    sc = generate_semantics_code(grammar, use_builtin_rules=True)
+    g = generate_tatsu_grammar(grammar, extra_rules=BUILTIN_RULES)
+
+    assert sc == textwrap.dedent(
+        """\
+        from __future__ import annotations
+
+        import dataclasses
+        import enum
+        import typing
+
+        import rust_parser.gll.semantics
+        import rust_parser.gll.builtin_rules
+
+
+        @dataclasses.dataclass
+        class MainInner:
+            inner: Item
+
+            @classmethod
+            def from_ast(cls, ast) -> MainInner:
+                return cls(inner=ast)
+
+        class Main(typing.List[MainInner]):
+            @classmethod
+            def from_ast(cls, ast) -> Main:
+                return cls(list(map(MainInner.from_ast, ast["items"]))[0::2])
+
+
+        @dataclasses.dataclass
+        class Item:
+            @classmethod
+            def from_ast(cls, ast) -> Item:
+                return cls(
+                    foo=str(ast["foo"]),
+                    bar=str(ast["bar"]),
+                )
+
+            foo: str
+            bar: str
+
+
+        class Semantics(rust_parser.gll.builtin_rules.BuiltinSemantics):
+            def Main(self, ast) -> Main:
+                return Main.from_ast(ast)
+
+            def Item(self, ast) -> Item:
+                return Item.from_ast(ast)
+    """
+    )
+
+    namespace = {}
+    exec(sc, namespace)
+    semantics = namespace["Semantics"]()
+    Main = namespace["Main"]
+    MainInner = namespace["MainInner"]
+    Item = namespace["Item"]
+
+    assert g.parse("FOO BAR", semantics=semantics, rule_name="Main") == Main(
+        [MainInner(Item("FOO", "BAR"))]
+    )
+    assert g.parse("FOO BAR :: FOO BAR", semantics=semantics, rule_name="Main") == Main(
+        [MainInner(Item("FOO", "BAR")), MainInner(Item("FOO", "BAR"))]
+    )
