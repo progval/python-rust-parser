@@ -15,56 +15,68 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
-from ..gll import grammar
+import pytest
+
 from ..gll import builtin_rules
 from ..parser import Parser
 
 
-def test_parse():
-    p = Parser(start_rules={"ExprMain": "Expr", "ModuleMain": "ModuleContents"})
+@pytest.fixture(scope="session")
+def parser():
+    return Parser(start_rules={"ExprMain": "Expr", "ModuleMain": "ModuleContents"})
 
-    assert p.parse("1 + 2", start_rule_name="ExprMain") == p.ast.Expr(
+
+@pytest.fixture(scope="session")
+def ast(parser):
+    return parser.ast
+
+
+def test_parse_addition(parser, ast):
+    assert parser.parse("1 + 2", start_rule_name="ExprMain") == ast.Expr(
         attrs=[],
-        kind=p.ast.ExprKind.Binary(
-            left=p.ast.Expr(
+        kind=ast.ExprKind.Binary(
+            left=ast.Expr(
                 attrs=[],
-                kind=p.ast.ExprKind.Literal(inner=builtin_rules.LITERAL(literal="1")),
+                kind=ast.ExprKind.Literal(inner=builtin_rules.LITERAL(literal="1")),
             ),
-            op=p.ast.BinaryOp.ADD,
-            right=p.ast.Expr(
+            op=ast.BinaryOp.ADD,
+            right=ast.Expr(
                 attrs=[],
-                kind=p.ast.ExprKind.Literal(inner=builtin_rules.LITERAL(literal="2")),
+                kind=ast.ExprKind.Literal(inner=builtin_rules.LITERAL(literal="2")),
             ),
         ),
     )
 
-    assert p.parse(
+
+def test_parse_const_declaration(parser, ast):
+    assert parser.parse(
         'const foo: bar = "baz";', start_rule_name="ModuleMain"
-    ) == p.ast.ModuleContents(
+    ) == ast.ModuleContents(
         attrs=[],
         items=[
-            p.ast.Item(
+            ast.Item(
                 attrs=[],
                 vis=None,
-                kind=p.ast.ItemKind.Const(
+                kind=ast.ItemKind.Const(
                     name=builtin_rules.IDENT(ident="foo"),
-                    ty=p.ast.Type.Path_(
-                        inner=p.ast.QPath.Unqualified(
-                            inner=p.ast.Path(
+                    ty=ast.Type.Path_(
+                        inner=ast.QPath.Unqualified(
+                            inner=ast.Path(
                                 global_=False,
                                 path=[
-                                    p.ast.RelativePathInner(
-                                        inner=p.ast.PathSegment(
-                                            ident=builtin_rules.IDENT(ident="bar"), field_1=None
+                                    ast.RelativePathInner(
+                                        inner=ast.PathSegment(
+                                            ident=builtin_rules.IDENT(ident="bar"),
+                                            field_1=None,
                                         )
                                     )
                                 ],
                             )
                         )
                     ),
-                    value=p.ast.Expr(
+                    value=ast.Expr(
                         attrs=[],
-                        kind=p.ast.ExprKind.Literal(
+                        kind=ast.ExprKind.Literal(
                             inner=builtin_rules.LITERAL(literal='"baz"')
                         ),
                     ),
