@@ -84,3 +84,42 @@ def test_parse_const_declaration(parser, ast):
             )
         ],
     )
+
+
+def test_parse_fn_declaration(parser, ast):
+    assert parser.parse(
+        "fn foo() { 42 }", start_rule_name="ModuleMain"
+    ) == ast.ModuleContents(
+        attrs=[],
+        items=[
+            ast.Item(
+                attrs=[],
+                vis=None,
+                kind=ast.ItemKind.Fn(
+                    header=ast.FnHeader(
+                        constness=False, unsafety=False, asyncness=False, field_3=None
+                    ),
+                    decl=ast.FnDecl(
+                        name=builtin_rules.IDENT(ident="foo"),
+                        generics=None,
+                        args=None,
+                        field_3=None,
+                        where_clause=None,
+                    ),
+                    body=ast.Block(
+                        attrs=[],
+                        stmts=[
+                            ast.Stmt.Expr_(
+                                inner=ast.Expr(
+                                    attrs=[],
+                                    kind=ast.ExprKind.Literal(
+                                        inner=builtin_rules.LITERAL(literal="42")
+                                    ),
+                                )
+                            )
+                        ],
+                    ),
+                ),
+            )
+        ],
+    )
