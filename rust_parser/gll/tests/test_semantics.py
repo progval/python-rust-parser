@@ -27,6 +27,14 @@ from ..generate import generate_tatsu_grammar
 from ..builtin_rules import BUILTIN_RULES, IDENT
 
 
+def test_qualname_maybe():
+    Main = Maybe[str]
+
+    assert Main.__qualname__ == "Maybe[str]"
+    assert Main.Just.__qualname__ == "Maybe[str].Just"
+    assert Main.Nothing.__qualname__ == "Maybe[str].Nothing"
+
+
 def test_simple_grammar():
     grammar = gll_grammar.Grammar(rules={"Foo": gll_grammar.StringLiteral("foo")})
     sc = generate_semantics_code(grammar)

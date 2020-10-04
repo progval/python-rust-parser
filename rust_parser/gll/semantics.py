@@ -123,10 +123,11 @@ class Maybe(Generic[T]):
         """Generates Just and Nothing variants for the non-generic class."""
         if type_param in cls.__cache:
             return cls.__cache[type_param]
-        new_cls = type(f"Maybe[{type_param}]", (cls,), {})
+        new_cls = type(f"{cls.__qualname__}[{type_param.__qualname__}]", (cls,), {})
 
         @dataclass
         class Just(new_cls):
+            __qualname__ = f"{new_cls.__qualname__}.Just"
             item: type_param
 
             @classmethod
@@ -135,6 +136,7 @@ class Maybe(Generic[T]):
 
         @dataclass
         class Nothing(new_cls):
+            __qualname__ = f"{new_cls.__qualname__}.Nothing"
             pass
 
         new_cls.Just = Just
