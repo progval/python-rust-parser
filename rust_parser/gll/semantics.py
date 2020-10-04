@@ -73,7 +73,9 @@ class ADT(type):
             if object in variant_parents:
                 variant_parents.remove(object)
 
-            variant_attributes = {}
+            variant_attributes = {
+                "__qualname__": f"{adt.__qualname__}.{variant_name}",
+            }
             for (attr_name, attr) in variant_source.__dict__.items():
                 if hasattr(attr, "__self__"):
                     # We need to use .__func__ to get the unbound method, or it would be

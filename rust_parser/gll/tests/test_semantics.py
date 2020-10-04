@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
+import dataclasses
 import textwrap
 
 import pytest
@@ -22,7 +23,7 @@ import tatsu
 from tatsu import exceptions
 
 from .. import grammar as gll_grammar
-from ..semantics import generate_semantics_code, Maybe
+from ..semantics import ADT, generate_semantics_code, Maybe
 from ..generate import generate_tatsu_grammar
 from ..builtin_rules import BUILTIN_RULES, IDENT
 
@@ -33,6 +34,28 @@ def test_qualname_maybe():
     assert Main.__qualname__ == "Maybe[str]"
     assert Main.Just.__qualname__ == "Maybe[str].Just"
     assert Main.Nothing.__qualname__ == "Maybe[str].Nothing"
+
+
+def test_qualname_adt():
+    class Main(metaclass=ADT):
+        _variants = {"Foo": "Foo", "Bar": "Bar"}
+
+        @dataclasses.dataclass
+        class Foo:
+            @classmethod
+            def from_ast(cls, ast):
+                return cls()
+
+        class Bar:
+            pass
+
+        Baz = Maybe[str]
+
+    prefix = "test_qualname_adt.<locals>."
+    assert Main.__qualname__ == f"{prefix}Main"
+    assert Main.Foo.__qualname__ == f"{prefix}Main.Foo"
+    assert Main.Bar.__qualname__ == f"{prefix}Main.Bar"
+    assert Main.Baz.__qualname__ == f"Maybe[str]"
 
 
 def test_simple_grammar():
