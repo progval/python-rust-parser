@@ -333,8 +333,11 @@ class SemanticsGenerator:
             case grammar.Empty():
                 return textwrap.dedent(
                     f"""
+                    @dataclasses.dataclass
                     class {type_name}:
-                        pass
+                        @classmethod
+                        def from_ast(cls, ast):
+                            return cls()
                     """
                 )
 

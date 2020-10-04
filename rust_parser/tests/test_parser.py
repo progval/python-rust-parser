@@ -87,7 +87,7 @@ def test_parse_const_declaration(parser, ast):
 
 
 def test_parse_fn_declaration(parser, ast):
-    def expected_ast(ret_ty):
+    def expected_ast(extra_stmts, ret_ty):
         return [
             ast.Item(
                 attrs=[],
@@ -113,7 +113,8 @@ def test_parse_fn_declaration(parser, ast):
                                         inner=builtin_rules.LITERAL(literal="42")
                                     ),
                                 )
-                            )
+                            ),
+                            *extra_stmts,
                         ],
                     ),
                 ),
@@ -122,14 +123,15 @@ def test_parse_fn_declaration(parser, ast):
 
     assert parser.parse(
         "fn foo() { 42 }", start_rule_name="ModuleMain"
-    ) == ast.ModuleContents(attrs=[], items=expected_ast(None))
+    ) == ast.ModuleContents(attrs=[], items=expected_ast(extra_stmts=[], ret_ty=None))
 
     assert parser.parse(
         "fn foo() -> u64 { 42 }", start_rule_name="ModuleMain"
     ) == ast.ModuleContents(
         attrs=[],
         items=expected_ast(
-            ast.Type.Path_(
+            extra_stmts=[],
+            ret_ty=ast.Type.Path_(
                 inner=ast.QPath.Unqualified(
                     inner=ast.Path(
                         global_=False,
@@ -144,4 +146,10 @@ def test_parse_fn_declaration(parser, ast):
                 )
             ),
         ),
+    )
+
+    assert parser.parse(
+        "fn foo() { 42; }", start_rule_name="ModuleMain"
+    ) == ast.ModuleContents(
+        attrs=[], items=expected_ast(extra_stmts=[ast.Stmt.Semi()], ret_ty=None)
     )
