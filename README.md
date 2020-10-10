@@ -28,7 +28,7 @@ Don't
    1. `cd ~`
    2. `git clone https://github.com/brandtbucher/cpython.git cpython-patma`
    3. `cd cpython-patma`
-   4. `git checkout patma`
+   4. `git checkout 19af7d547e094006bfdc40a358385ad49503c597`
    5. `./configure --prefix=$HOME/.local/`
    6. `make -j 4`
    7. `make install`
