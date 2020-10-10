@@ -27,6 +27,7 @@ import typing
 from typing import Dict, Generic, List, Optional, Type, TypeVar
 
 from tatsu.util import safe_name
+import tatsu.contexts
 
 from . import grammar
 from .builtin_rules import BUILTIN_RULES
@@ -150,6 +151,47 @@ class Maybe(Generic[T]):
         cls.__cache[type_param] = new_cls
 
         return new_cls
+
+
+def flatten_repeated_list_with_trailing(expected_separator, l):
+    # Tatsu doesn't support trailing separators, so generate.py has to generate a
+    # non-trivial rule to support it, which causes ASTs like this:
+    # [[[arg1, sep], [arg2, sep]], arg3]
+    print("in", l)
+    match l:
+        case (l, last_arg, last_sep):
+            assert last_sep == expected_separator
+            reversed_args = [last_arg]
+        case (l, None):
+            # Trailing sep
+            reversed_args = []
+        case (l, last_arg):
+            # XXX: why is this case triggered?
+            reversed_args = [last_arg]
+        case _:
+            assert False, l
+    while l and type(l) is tatsu.contexts.closure or type(l) is list:
+        print("mid", l)
+        sep = None
+        match l:
+            case [[arg, sep]]:
+                print(1)
+                l = None
+            case [l, [arg, sep]]:
+                print(2)
+                pass
+            case [arg, sep]:
+                print(3)
+                # XXX: why is this case triggered?
+                pass
+            case _:
+                assert False, l
+        print("arg", arg)
+        assert sep is None or sep == expected_separator, f"{repr(sep)} != {repr(expected_separator)}"
+        reversed_args.append(arg)
+    print(repr(l), type(l))
+    print("out", list(reversed(reversed_args)))
+    return reversed(reversed_args)
 
 
 class SemanticsGenerator:
@@ -303,7 +345,7 @@ class SemanticsGenerator:
             case grammar.Option(item):
                 return f"{self.node_to_constructor(item, var_name)} if {var_name} else None"
 
-            case grammar.Repeated(positive, item, separator, allow_trailing):
+            case grammar.Repeated(positive, item, separator, allow_trailing=False):
                 # FIXME: ugly
                 iter_var_name = var_name.split(".")[-1].replace('["', "_").replace('"]', '') + "_item"
                 if separator:
@@ -312,7 +354,17 @@ class SemanticsGenerator:
                     slice_ = ""
                 return (
                     f"[{self.node_to_constructor(item, f'{iter_var_name}')} "
-                    f"for {iter_var_name} in {var_name}]{slice_}"
+                    f"for {iter_var_name} in {var_name}{slice_}]"
+                )
+
+            case grammar.Repeated(positive, item, separator, allow_trailing=True):
+                # FIXME: ugly
+                assert separator is not None
+                iter_var_name = var_name.split(".")[-1].replace('["', "_").replace('"]', '') + "_item"
+                return (
+                    f"[{self.node_to_constructor(item, f'{iter_var_name}')} "
+                    f"for {iter_var_name} "
+                    f"in rust_parser.gll.semantics.flatten_repeated_list_with_trailing({repr(separator)}, {var_name})]"
                 )
 
             case _:
@@ -491,7 +543,7 @@ class SemanticsGenerator:
                 ]
                 return "\n\n".join(blocks)
 
-            case grammar.Repeated(positive, item, separator, allow_trailing):
+            case grammar.Repeated(positive, item, separator, allow_trailing=False):
                 # TODO: better name
                 if local:
                     inner_name = self.gen_local_name(f"{type_name}Inner")
@@ -510,7 +562,29 @@ class SemanticsGenerator:
                         class {type_name}(typing.List[{inner_name}]):
                             @classmethod
                             def from_ast(cls, ast) -> {type_name}:
-                                return cls(list(map({cls}{inner_name}.from_ast, {ast_accessor})){slice_})
+                                return cls(list(map({cls}{inner_name}.from_ast, {ast_accessor}{slice_})))
+                        """
+                    )
+                ]
+                return "\n".join(blocks)
+
+            case grammar.Repeated(positive, item, separator, allow_trailing=True):
+                # TODO: better name
+                if local:
+                    inner_name = self.gen_local_name(f"{type_name}Inner")
+                    cls = "cls."
+                else:
+                    inner_name = self.gen_global_name(f"{type_name}Inner")
+                    cls = ""
+                assert separator is not None
+                blocks = [
+                    self.node_to_type_code(inner_name, item, local),
+                    textwrap.dedent(
+                        f"""\
+                        class {type_name}(typing.List[{inner_name}]):
+                            @classmethod
+                            def from_ast(cls, ast) -> {type_name}:
+                                return cls(map({cls}{inner_name}.from_ast, rust_parser.gll.semantics.flatten_repeated_list_with_trailing({repr(separator)}, {ast_accessor})))
                         """
                     )
                 ]

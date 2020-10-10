@@ -140,3 +140,53 @@ def test_parse_fn_declaration(parser, ast):
     ) == ast.ModuleContents(
         attrs=[], items=expected_ast(extra_stmts=[ast.Stmt.Semi()], ret_ty=None)
     )
+
+
+def test_parse_struct(parser, ast):
+    expected_ast = ast.ModuleContents(
+        attrs=[],
+        items=[
+            ast.Item(
+                attrs=[],
+                vis=None,
+                kind=ast.ItemKind.Struct(
+                    name=builtin_rules.IDENT(ident="Foo"),
+                    generics=None,
+                    body=ast.StructBody.Record(
+                        where_clause=None,
+                        fields=[
+                            ast.RecordField(
+                                attrs=[],
+                                vis=None,
+                                name=builtin_rules.IDENT(ident="bar"),
+                                ty=ast.Type.Path_(
+                                    inner=ast.QPath.Unqualified(
+                                        inner=ast.Path(
+                                            global_=False,
+                                            path=[
+                                                ast.RelativePathInner(
+                                                    inner=ast.PathSegment(
+                                                        ident=builtin_rules.IDENT(
+                                                            ident="Baz"
+                                                        ),
+                                                        field_1=None,
+                                                    )
+                                                )
+                                            ],
+                                        )
+                                    )
+                                ),
+                            )
+                        ],
+                    ),
+                ),
+            )
+        ],
+    )
+
+    assert parser.parse(
+        "struct Foo { bar: Baz }", start_rule_name="ModuleMain"
+    ) == expected_ast
+    assert parser.parse(
+        "struct Foo { bar: Baz, }", start_rule_name="ModuleMain"
+    ) == expected_ast
