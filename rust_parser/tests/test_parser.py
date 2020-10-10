@@ -15,20 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with python-rust-parser.  If not, see <https://www.gnu.org/licenses/>.
 
-import pytest
-
 from ..gll import builtin_rules
-from ..parser import Parser
-
-
-@pytest.fixture(scope="session")
-def parser():
-    return Parser(start_rules={"ExprMain": "Expr", "ModuleMain": "ModuleContents"})
-
-
-@pytest.fixture(scope="session")
-def ast(parser):
-    return parser.ast
 
 
 def test_parse_addition(parser, ast):
