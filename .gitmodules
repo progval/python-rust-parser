@@ -1,3 +1,6 @@
 [submodule "rust_parser/wg-grammar"]
 	path = rust_parser/wg-grammar
 	url = https://github.com/ProgVal/wg-grammar.git
+[submodule "rust_parser/tests/data/rust-analyzer"]
+	path = rust_parser/tests/data/rust-analyzer
+	url = https://github.com/rust-analyzer/rust-analyzer.git
